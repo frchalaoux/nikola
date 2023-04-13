@@ -119,7 +119,7 @@ class Galleries(Task, ImageProcessor):
             raise RuntimeError("Gallery name '{0}' is not unique! Possible output paths: {1}".format(name, candidates))
         else:
             self.logger.error("Unknown gallery '{0}'!".format(name))
-            self.logger.info("Known galleries: " + str(list(self.proper_gallery_links.keys())))
+            self.logger.info(f"Known galleries: {list(self.proper_gallery_links.keys())}")
             raise RuntimeError("Unknown gallery '{0}'!".format(name))
 
     def gallery_path(self, name, lang):
@@ -181,9 +181,7 @@ class Galleries(Task, ImageProcessor):
         template_name = "gallery.tmpl"
 
         # Create all output folders
-        for task in self.create_galleries():
-            yield task
-
+        yield from self.create_galleries()
         # For each gallery:
         for gallery, input_folder, output_folder in self.gallery_list:
 
@@ -199,14 +197,10 @@ class Galleries(Task, ImageProcessor):
 
             # Create thumbnails and large images in destination
             for image in image_list:
-                for task in self.create_target_images(image, input_folder):
-                    yield task
-
+                yield from self.create_target_images(image, input_folder)
             # Remove excluded images
             for image in self.get_excluded_images(gallery):
-                for task in self.remove_excluded_image(image, input_folder):
-                    yield task
-
+                yield from self.remove_excluded_image(image, input_folder)
             for lang in self.kw['translations']:
                 # save navigation links as dependencies
                 self.kw['navigation_links|{0}'.format(lang)] = self.kw['global_context']['navigation_links'](lang)
@@ -222,20 +216,18 @@ class Galleries(Task, ImageProcessor):
                 for k in self.site._GLOBAL_CONTEXT_TRANSLATABLE:
                     self.kw[k] = self.site.GLOBAL_CONTEXT[k](lang)
 
-                context = {}
-
                 # Do we have a metadata file?
                 meta_path, order, captions, img_metadata = self.find_metadata(gallery, lang)
-                context['meta_path'] = meta_path
-                context['order'] = order
-                context['captions'] = captions
-                context["lang"] = lang
-                if post:
-                    context["title"] = post.title(lang)
-                else:
-                    context["title"] = os.path.basename(gallery)
-                context["description"] = None
-
+                context = {
+                    'meta_path': meta_path,
+                    'order': order,
+                    'captions': captions,
+                    "lang": lang,
+                    "title": post.title(lang)
+                    if post
+                    else os.path.basename(gallery),
+                    "description": None,
+                }
                 image_name_list = [os.path.basename(p) for p in image_list]
 
                 if captions:
@@ -314,7 +306,7 @@ class Galleries(Task, ImageProcessor):
                     context['post'] = None
 
                 template_dep_context = context.copy()
-                template_dep_context.update(self.site.GLOBAL_CONTEXT)
+                template_dep_context |= self.site.GLOBAL_CONTEXT
                 file_dep = self.site.template_system.template_deps(
                     template_name, template_dep_context) + image_list + thumbs
                 file_dep_dest = self.site.template_system.template_deps(
@@ -379,21 +371,24 @@ class Galleries(Task, ImageProcessor):
         """Find all galleries to be processed according to conf.py."""
         self.gallery_list = []
         for input_folder, output_folder in self.kw['gallery_folders'].items():
-            for root, dirs, files in os.walk(input_folder, followlinks=True):
-                # If output folder is empty, the top-level gallery
-                # index will collide with the main page for the site.
-                # Don't generate the top-level gallery index in that
-                # case.
-                # FIXME: also ignore pages named index
-                if (output_folder or root != input_folder and
-                        (not self.kw['disable_indexes'] and self.kw['index_path'] == '')):
-                    self.gallery_list.append((root, input_folder, output_folder))
+            self.gallery_list.extend(
+                (root, input_folder, output_folder)
+                for root, dirs, files in os.walk(input_folder, followlinks=True)
+                if (
+                    output_folder
+                    or root != input_folder
+                    and (
+                        not self.kw['disable_indexes']
+                        and self.kw['index_path'] == ''
+                    )
+                )
+            )
 
     def create_galleries_paths(self):
         """Given a list of galleries, put their paths into self.gallery_links."""
         # gallery_path is "gallery/foo/name"
-        self.proper_gallery_links = dict()
-        self.improper_gallery_links = dict()
+        self.proper_gallery_links = {}
+        self.improper_gallery_links = {}
         for gallery_path, input_folder, output_folder in self.gallery_list:
             if gallery_path == input_folder:
                 gallery_name = ''
@@ -411,12 +406,12 @@ class Galleries(Task, ImageProcessor):
             if output_path_noslash not in self.proper_gallery_links:
                 self.proper_gallery_links[output_path_noslash] = output_path
 
-            gallery_path_slash = gallery_path + '/'
+            gallery_path_slash = f'{gallery_path}/'
             if gallery_path_slash not in self.proper_gallery_links:
                 self.proper_gallery_links[gallery_path_slash] = output_path
 
             if gallery_name not in self.improper_gallery_links:
-                self.improper_gallery_links[gallery_name] = list()
+                self.improper_gallery_links[gallery_name] = []
             self.improper_gallery_links[gallery_name].append(output_path)
 
     def create_galleries(self):
@@ -544,8 +539,7 @@ class Galleries(Task, ImageProcessor):
         except IOError:
             excluded_image_name_list = []
 
-        excluded_image_list = ["{0}/{1}".format(gallery_path, i) for i in excluded_image_name_list]
-        return excluded_image_list
+        return ["{0}/{1}".format(gallery_path, i) for i in excluded_image_name_list]
 
     def get_image_list(self, gallery_path):
         """Get list of included images."""
@@ -553,8 +547,9 @@ class Galleries(Task, ImageProcessor):
         image_list = []
 
         for ext in self.image_ext_list:
-            image_list += glob.glob(gallery_path + '/*' + ext.lower()) +\
-                glob.glob(gallery_path + '/*' + ext.upper())
+            image_list += glob.glob(f'{gallery_path}/*{ext.lower()}') + glob.glob(
+                f'{gallery_path}/*{ext.upper()}'
+            )
 
         # Filter ignored images
         excluded_image_list = self.get_excluded_images(gallery_path)
@@ -619,7 +614,7 @@ class Galleries(Task, ImageProcessor):
         img = os.path.relpath(img, input_folder)
         img_path = os.path.join(output_folder, os.path.basename(img))
         fname, ext = os.path.splitext(img_path)
-        thumb_path = fname + '.thumbnail' + ext
+        thumb_path = f'{fname}.thumbnail{ext}'
 
         yield utils.apply_filters({
             'basename': '_render_galleries_clean',
@@ -666,11 +661,7 @@ class Galleries(Task, ImageProcessor):
         else:  # Sort by name
             all_data.sort(key=lambda a: a[0])
 
-        if all_data:
-            img_list, thumbs, img_titles = zip(*all_data)
-        else:
-            img_list, thumbs, img_titles = [], [], []
-
+        img_list, thumbs, img_titles = zip(*all_data) if all_data else ([], [], [])
         photo_info = OrderedDict()
         for img, thumb, title in zip(img_list, thumbs, img_titles):
             w, h = _image_size_cache.get(thumb, (None, None))

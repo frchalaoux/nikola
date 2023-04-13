@@ -66,13 +66,14 @@ class ImageProcessor(object):
         self._fill_exif_tag_names()
         exif = exif.copy()  # Don't modify in-place, it's rude
         for k in list(exif.keys()):
-            if not isinstance(exif[k], dict):
+            if (
+                not isinstance(exif[k], dict)
+                or k in whitelist
+                and whitelist[k] == '*'
+            ):
                 pass  # At least thumbnails have no fields
             elif k not in whitelist:
                 exif.pop(k)  # Not whitelisted, remove
-            elif k in whitelist and whitelist[k] == '*':
-                # Fully whitelisted, keep all
-                pass
             else:
                 # Partially whitelisted
                 for tag in list(exif[k].keys()):
@@ -101,7 +102,9 @@ class ImageProcessor(object):
         if max_sizes is None:
             max_sizes = [max_size]
         if len(max_sizes) != len(dst_paths):
-            raise ValueError('resize_image called with incompatible arguments: {} / {}'.format(dst_paths, max_sizes))
+            raise ValueError(
+                f'resize_image called with incompatible arguments: {dst_paths} / {max_sizes}'
+            )
         extension = os.path.splitext(src)[1].lower()
         if extension in {'.svg', '.svgz'}:
             self.resize_svg(src, dst_paths, max_sizes, bigger_panoramas)
@@ -184,8 +187,8 @@ class ImageProcessor(object):
                 tree = lxml.etree.XML(xml)
                 width = tree.attrib['width']
                 height = tree.attrib['height']
-                w = int(re.search("[0-9]+", width).group(0))
-                h = int(re.search("[0-9]+", height).group(0))
+                w = int(re.search("[0-9]+", width)[0])
+                h = int(re.search("[0-9]+", height)[0])
                 # calculate new size preserving aspect ratio.
                 ratio = float(w) / h
                 # Panoramas get larger thumbnails because they look *awful*
@@ -202,14 +205,11 @@ class ImageProcessor(object):
                 tree.attrib.pop("width")
                 tree.attrib.pop("height")
                 tree.attrib['viewport'] = "0 0 %ipx %ipx" % (w, h)
-                if dst.endswith('.svgz'):
-                    op = gzip.GzipFile(dst, 'wb')
-                else:
-                    op = open(dst, 'wb')
+                op = gzip.GzipFile(dst, 'wb') if dst.endswith('.svgz') else open(dst, 'wb')
                 op.write(lxml.etree.tostring(tree))
                 op.close()
             except (KeyError, AttributeError) as e:
-                self.logger.warning("No width/height in %s. Original exception: %s" % (src, e))
+                self.logger.warning(f"No width/height in {src}. Original exception: {e}")
                 utils.copy_file(src, dst)
 
     def image_date(self, src):

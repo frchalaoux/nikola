@@ -165,12 +165,9 @@ def mako2jinja(input_file):
         if m_func_len:
             line = func_len.sub(r'\1|length', line)
 
-        # Macro start/end
-        m_macro_start = macro_start.search(line)
-        if m_macro_start:
+        if m_macro_start := macro_start.search(line):
             line = m_macro_start.expand(r'\1{% macro \2 %}\3') + '\n'
-        m_macro_end = macro_end.search(line)
-        if m_macro_end:
+        if m_macro_end := macro_end.search(line):
             line = m_macro_end.expand(r'\1{% endmacro %}\2') + '\n'
 
         # Process line for single 'whole line' replacements
@@ -188,9 +185,7 @@ def mako2jinja(input_file):
         m_block_start = block_start.search(line)
         m_block_end = block_end.search(line)
 
-        m_comment_single_line = comment_single_line.search(line)
-
-        if m_comment_single_line:
+        if m_comment_single_line := comment_single_line.search(line):
             output += m_comment_single_line.expand(r'{# \1 #}') + '\n'
 
         elif m_if_start:
@@ -239,9 +234,9 @@ def jinjify_shortcodes(in_dir, out_dir):
 
 
 def usage():
-    print("Usage: python {} [in-dir] [out-dir]".format(sys.argv[0]))
+    print(f"Usage: python {sys.argv[0]} [in-dir] [out-dir]")
     print("OR")
-    print("Usage: python {} [in-file] [out-file]".format(sys.argv[0]))
+    print(f"Usage: python {sys.argv[0]} [in-file] [out-file]")
 
 if __name__ == "__main__":
     if len(sys.argv) == 1:

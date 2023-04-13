@@ -17,9 +17,10 @@ $ getpyver.py long short
 2.7.6
 
 """
+
 import sys
 limit = 3 if 'long' in sys.argv else 2
 if 'short' in sys.argv:
-    print(".".join([str(i) for i in sys.version_info[0:limit]]))
+    print(".".join([str(i) for i in sys.version_info[:limit]]))
 else:
-    print("v" + (".".join([str(i) for i in sys.version_info[0:limit]])))
+    print("v" + ".".join([str(i) for i in sys.version_info[:limit]]))

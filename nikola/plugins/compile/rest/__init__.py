@@ -158,10 +158,7 @@ class CompileRest(PageCompiler):
             else:
                 post._depfile[dest] += deps.list
                 post._depfile[dest] += shortcode_deps
-        if error_level < 3:
-            return True
-        else:
-            return False
+        return error_level < 3
 
     def create_post(self, path, **kw):
         """Create a new post."""
@@ -170,7 +167,7 @@ class CompileRest(PageCompiler):
         # is_page is not used by create_post as of now.
         kw.pop('is_page', False)
         metadata = {}
-        metadata.update(self.default_metadata)
+        metadata |= self.default_metadata
         metadata.update(kw)
         makedirs(os.path.dirname(path))
         if not content.endswith('\n'):
@@ -295,9 +292,17 @@ def add_node(node, visit_function=None, depart_function=None):
     """
     docutils.nodes._add_node_class_names([node.__name__])
     if visit_function:
-        setattr(docutils.writers.html5_polyglot.HTMLTranslator, 'visit_' + node.__name__, visit_function)
+        setattr(
+            docutils.writers.html5_polyglot.HTMLTranslator,
+            f'visit_{node.__name__}',
+            visit_function,
+        )
     if depart_function:
-        setattr(docutils.writers.html5_polyglot.HTMLTranslator, 'depart_' + node.__name__, depart_function)
+        setattr(
+            docutils.writers.html5_polyglot.HTMLTranslator,
+            f'depart_{node.__name__}',
+            depart_function,
+        )
 
 
 # Output <code> for ``double backticks``. (Code and extra logic based on html4css1 translator)
@@ -318,8 +323,7 @@ def visit_literal(self, node):
             # Protect text like "--an-option" and the regular expression
             # ``[+]?(\d+(\.\d*)?|\.\d+)`` from bad line wrapping
             if self.in_word_wrap_point.search(token):
-                self.body.append('<span class="pre">%s</span>'
-                                 % self.encode(token))
+                self.body.append(f'<span class="pre">{self.encode(token)}</span>')
             else:
                 self.body.append(self.encode(token))
         elif token in ('\n', ' '):

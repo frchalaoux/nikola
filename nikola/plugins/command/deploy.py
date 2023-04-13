@@ -71,11 +71,7 @@ class CommandDeploy(Command):
         if undeployed_posts:
             self.logger.warning("Deleted {0} posts due to DEPLOY_* settings".format(len(undeployed_posts)))
 
-        if args:
-            presets = args
-        else:
-            presets = ['default']
-
+        presets = args if args else ['default']
         # test for preset existence
         for preset in presets:
             try:
@@ -140,5 +136,5 @@ class CommandDeploy(Command):
 
         event['deployed'] = deployed
 
-        if len(deployed) > 0 or len(undeployed) > 0:
+        if deployed or len(undeployed) > 0:
             signal('deployed').send(event)

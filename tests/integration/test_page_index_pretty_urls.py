@@ -30,7 +30,7 @@ from .test_page_index_normal_urls import (  # NOQA
 def output_path_func():
     def output_path(dir, name):
         """Make a file path to the output."""
-        return os.path.join(dir, name + "/index.html")
+        return os.path.join(dir, f"{name}/index.html")
 
     return output_path
 

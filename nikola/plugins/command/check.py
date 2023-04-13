@@ -42,9 +42,8 @@ from nikola.plugin_categories import Command
 
 
 def _call_nikola_list(site, cache=None):
-    if cache is not None:
-        if 'files' in cache and 'deps' in cache:
-            return cache['files'], cache['deps']
+    if cache is not None and 'files' in cache and 'deps' in cache:
+        return cache['files'], cache['deps']
     files = []
     deps = defaultdict(list)
     for task in generate_tasks('render_site', site.gen_tasks('render_site', "Task", '')):
@@ -163,10 +162,7 @@ class CommandCheck(Command):
         if not options['links'] and not options['files'] and not options['clean']:
             print(self.help())
             return 1
-        if options['verbose']:
-            self.logger.level = logging.DEBUG
-        else:
-            self.logger.level = logging.WARNING
+        self.logger.level = logging.DEBUG if options['verbose'] else logging.WARNING
         failure = False
         self.timeout = options['timeout']
         if options['links']:

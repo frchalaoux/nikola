@@ -153,10 +153,7 @@ class Listings(Task):
                         os.path.join(
                             self.kw['output_folder'],
                             output_folder))))
-            if in_name:
-                source_link = permalink[:-5]  # remove '.html'
-            else:
-                source_link = None
+            source_link = permalink[:-5] if in_name else None
             context = {
                 'code': code,
                 'title': title,
@@ -231,8 +228,8 @@ class Listings(Task):
                         continue
                     in_name = os.path.join(root, f)
                     # Record file names
-                    rel_name = os.path.join(rel_path, f + '.html')
-                    rel_output_name = os.path.join(output_folder, rel_path, f + '.html')
+                    rel_name = os.path.join(rel_path, f'{f}.html')
+                    rel_output_name = os.path.join(output_folder, rel_path, f'{f}.html')
                     self.register_output_name(input_folder, rel_name, rel_output_name)
                     # Set up output name
                     out_name = os.path.join(self.kw['output_folder'], rel_output_name)
@@ -290,7 +287,7 @@ class Listings(Task):
         link://listing/tutorial/hello.py => /listings/tutorial/hello.py.html
         """
         namep = namep.replace('/', os.sep)
-        nameh = namep + '.html'
+        nameh = f'{namep}.html'
         for name in (namep, nameh):
             if name in self.proper_input_file_mapping:
                 # If the name shows up in this dict, everything's fine.

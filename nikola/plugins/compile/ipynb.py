@@ -128,7 +128,7 @@ class CompileIPynb(PageCompiler):
         kw.pop('is_page', False)
 
         metadata = {}
-        metadata.update(self.default_metadata)
+        metadata |= self.default_metadata
         metadata.update(kw)
 
         makedirs(os.path.dirname(path))
@@ -179,7 +179,7 @@ def get_default_jupyter_config():
                 if 'nbconvert' in file and file.endswith('.json'):
                     abs_path = os.path.join(parent, file)
                     with open(abs_path) as config_file:
-                        config.update(json.load(config_file))
+                        config |= json.load(config_file)
         except OSError:
             # some paths jupyter uses to find configurations
             # may not exist

@@ -61,13 +61,11 @@ class GzipFiles(TaskMultiplier):
             if (ext.lower() in self.site.config['GZIP_EXTENSIONS'] and
                     target.startswith(self.site.config['OUTPUT_FOLDER'])):
                 flag = True
-                gzipped = target + '.gz'
+                gzipped = f'{target}.gz'
                 gzip_task['file_dep'].append(target)
                 gzip_task['targets'].append(gzipped)
                 gzip_task['actions'].append((create_gzipped_copy, (target, gzipped, self.site.config['GZIP_COMMAND'])))
-        if not flag:
-            return []
-        return [gzip_task]
+        return [gzip_task] if flag else []
 
 
 def create_gzipped_copy(in_path, out_path, command=None):

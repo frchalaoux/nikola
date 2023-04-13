@@ -81,9 +81,7 @@ link://author_rss/joe => /authors/joe.xml""",
         """Return True if this taxonomy is enabled, or False otherwise."""
         if not self.site.config["ENABLE_AUTHOR_PAGES"]:
             return False
-        if lang is not None:
-            return self.generate_author_pages
-        return True
+        return self.generate_author_pages if lang is not None else True
 
     def classify(self, post, lang):
         """Classify the given post for the given language."""
@@ -120,7 +118,7 @@ link://author_rss/joe => /authors/joe.xml""",
             "permalink": self.site.link("author_index", None, lang),
             "pagekind": ["list", "authors_page"],
         }
-        kw.update(context)
+        kw |= context
         return context, kw
 
     def provide_context_and_uptodate(self, classification, lang, node=None):
@@ -135,7 +133,7 @@ link://author_rss/joe => /authors/joe.xml""",
             "description": descriptions[lang][classification] if lang in descriptions and classification in descriptions[lang] else None,
             "pagekind": ["index" if self.show_list_as_index else "list", "author_page"],
         }
-        kw.update(context)
+        kw |= context
         return context, kw
 
     def get_other_language_variants(self, classification, lang, classifications_per_language):

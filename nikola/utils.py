@@ -140,7 +140,7 @@ def req_missing(names, purpose, python=True, optional=False):
     to the user.
 
     """
-    if not (isinstance(names, tuple) or isinstance(names, list) or isinstance(names, set)):
+    if not (isinstance(names, (tuple, list, set))):
         names = (names,)
     if not names:
         return False
@@ -154,7 +154,7 @@ def req_missing(names, purpose, python=True, optional=False):
             purpose, names[0], whatarethey_s)
     else:
         most = '", "'.join(names[:-1])
-        pnames = most + '" and "' + names[-1]
+        pnames = f'{most}" and "{names[-1]}'
         msg = 'In order to {0}, you must install the "{1}" {2}.'.format(
             purpose, pnames, whatarethey_p)
 
@@ -173,16 +173,12 @@ ENCODING = sys.getfilesystemencoding() or sys.stdin.encoding
 
 def sys_encode(thing):
     """Return bytes encoded in the system's encoding."""
-    if isinstance(thing, str):
-        return thing.encode(ENCODING)
-    return thing
+    return thing.encode(ENCODING) if isinstance(thing, str) else thing
 
 
 def sys_decode(thing):
     """Return Unicode."""
-    if isinstance(thing, bytes):
-        return thing.decode(ENCODING)
-    return thing
+    return thing.decode(ENCODING) if isinstance(thing, bytes) else thing
 
 
 def makedirs(path):
@@ -270,7 +266,7 @@ class TranslatableSetting(object):
 
         if isinstance(inp, dict) and inp:
             self.translated = True
-            self.values.update(inp)
+            self.values |= inp
             if self.default_lang not in self.values.keys():
                 self.default_lang = list(self.values.keys())[0]
                 self.overridden_default = True
@@ -302,10 +298,7 @@ class TranslatableSetting(object):
         Otherwise, the standard algorithm is used (see above).
 
         """
-        if lang is None:
-            return self.values[self.get_lang()]
-        else:
-            return self.values[lang]
+        return self.values[self.get_lang()] if lang is None else self.values[lang]
 
     def __str__(self):
         """Return the value in the currently set language (deprecated)."""
@@ -327,59 +320,55 @@ class TranslatableSetting(object):
         if not formats:
             # Input is empty.
             return self
-        else:
-            # This is a little tricky.
-            # Basically, we have some things that may very well be dicts.  Or
-            # actually, TranslatableSettings in the original unprocessed dict
-            # form.  We need to detect them.
+        # This is a little tricky.
+        # Basically, we have some things that may very well be dicts.  Or
+        # actually, TranslatableSettings in the original unprocessed dict
+        # form.  We need to detect them.
 
-            # First off, we need to check what languages we have and what
-            # should we use as the default.
-            keys = list(formats)
-            if self.default_lang in keys:
-                d = formats[self.default_lang]
+        # First off, we need to check what languages we have and what
+        # should we use as the default.
+        keys = list(formats)
+        d = (
+            formats[self.default_lang]
+            if self.default_lang in keys
+            else formats[keys[0]]
+        )
+        # Discovering languages of the settings here.
+        langkeys = []
+        for f in formats.values():
+            for a in f[0] + tuple(f[1].values()):
+                if isinstance(a, dict):
+                    langkeys += list(a)
+
+        # Now that we know all this, we go through all the languages we have.
+        allvalues = set(keys + langkeys + list(self.values))
+        self.values['__orig__'] = self.values[self.default_lang]
+        for l in allvalues:
+            oargs, okwargs = formats[l] if l in keys else d
+            args = []
+            kwargs = {}
+
+            for a in oargs:
+                # We create temporary TranslatableSettings and replace the
+                # values with them.
+                if isinstance(a, dict):
+                    a = TranslatableSetting('NULL', a, self.translations)
+                    args.append(a(l))
+                else:
+                    args.append(a)
+
+            for k, v in okwargs.items():
+                if isinstance(v, dict):
+                    v = TranslatableSetting('NULL', v, self.translations)
+                    kwargs[k] = v(l)
+                else:
+                    kwargs[k] = v
+
+            if l in self.values:
+                self.values[l] = self.values[l].format(*args, **kwargs)
             else:
-                d = formats[keys[0]]
-            # Discovering languages of the settings here.
-            langkeys = []
-            for f in formats.values():
-                for a in f[0] + tuple(f[1].values()):
-                    if isinstance(a, dict):
-                        langkeys += list(a)
-
-            # Now that we know all this, we go through all the languages we have.
-            allvalues = set(keys + langkeys + list(self.values))
-            self.values['__orig__'] = self.values[self.default_lang]
-            for l in allvalues:
-                if l in keys:
-                    oargs, okwargs = formats[l]
-                else:
-                    oargs, okwargs = d
-
-                args = []
-                kwargs = {}
-
-                for a in oargs:
-                    # We create temporary TranslatableSettings and replace the
-                    # values with them.
-                    if isinstance(a, dict):
-                        a = TranslatableSetting('NULL', a, self.translations)
-                        args.append(a(l))
-                    else:
-                        args.append(a)
-
-                for k, v in okwargs.items():
-                    if isinstance(v, dict):
-                        v = TranslatableSetting('NULL', v, self.translations)
-                        kwargs.update({k: v(l)})
-                    else:
-                        kwargs.update({k: v})
-
-                if l in self.values:
-                    self.values[l] = self.values[l].format(*args, **kwargs)
-                else:
-                    self.values[l] = self.values['__orig__'].format(*args, **kwargs)
-                self.values.default_factory = lambda: self.values[self.default_lang]
+                self.values[l] = self.values['__orig__'].format(*args, **kwargs)
+            self.values.default_factory = lambda: self.values[self.default_lang]
 
         return self
 
@@ -509,7 +498,7 @@ class config_changed(tools.config_changed):
         super().__init__(config)
         self.identifier = '_config_changed'
         if identifier is not None:
-            self.identifier += ':' + identifier
+            self.identifier += f':{identifier}'
 
     # DEBUG (for unexpected rebuilds)
     @classmethod
@@ -540,20 +529,8 @@ class config_changed(tools.config_changed):
             return self.config
         elif isinstance(self.config, dict):
             data = json.dumps(self.config, cls=CustomEncoder, sort_keys=True)
-            if isinstance(data, str):  # pragma: no cover # python3
-                byte_data = data.encode("utf-8")
-            else:
-                byte_data = data
-            digest = hashlib.md5(byte_data).hexdigest()
-
-            # DEBUG (for unexpected rebuilds)
-            # self._write_into_debug_db(digest, data)
-            # Alternative (without database):
-            # LOGGER.debug('{{"{0}": {1}}}'.format(digest, byte_data))
-            # Humanized format:
-            # LOGGER.debug('[Digest {0} for {2}]\n{1}\n[Digest {0} for {2}]'.format(digest, byte_data, self.identifier))
-
-            return digest
+            byte_data = data.encode("utf-8") if isinstance(data, str) else data
+            return hashlib.md5(byte_data).hexdigest()
         else:
             raise Exception('Invalid type of config_changed parameter -- got '
                             '{0}, must be string or dict'.format(type(
@@ -566,9 +543,7 @@ class config_changed(tools.config_changed):
     def __call__(self, task, values):
         """Return True if config values are unchanged."""
         last_success = values.get(self.identifier)
-        if last_success is None:
-            return False
-        return (last_success == self._calc_digest())
+        return False if last_success is None else (last_success == self._calc_digest())
 
     def __repr__(self):
         """Provide a representation of config_changed."""
@@ -602,7 +577,7 @@ def parse_theme_meta(theme_dir):
     cp = configparser.ConfigParser()
     # The `or` case is in case theme_dir ends with a trailing slash
     theme_name = os.path.basename(theme_dir) or os.path.basename(os.path.dirname(theme_dir))
-    theme_meta_path = os.path.join(theme_dir, theme_name + '.theme')
+    theme_meta_path = os.path.join(theme_dir, f'{theme_name}.theme')
     cp.read(theme_meta_path)
     return cp if cp.has_section('Theme') else None
 
@@ -610,10 +585,8 @@ def parse_theme_meta(theme_dir):
 def get_template_engine(themes):
     """Get template engine used by a given theme."""
     for theme_name in themes:
-        meta = parse_theme_meta(theme_name)
-        if meta:
-            e = meta.get('Theme', 'engine', fallback=None)
-            if e:
+        if meta := parse_theme_meta(theme_name):
+            if e := meta.get('Theme', 'engine', fallback=None):
                 return e
         else:
             # Theme still uses old-style parent/engine files
@@ -627,8 +600,7 @@ def get_template_engine(themes):
 
 def get_parent_theme_name(theme_name, themes_dirs=None):
     """Get name of parent theme."""
-    meta = parse_theme_meta(theme_name)
-    if meta:
+    if meta := parse_theme_meta(theme_name):
         parent = meta.get('Theme', 'parent', fallback=None)
         if themes_dirs and parent:
             return get_theme_path_real(parent, themes_dirs)
@@ -639,9 +611,7 @@ def get_parent_theme_name(theme_name, themes_dirs=None):
         if os.path.isfile(parent_path):
             with open(parent_path) as fd:
                 parent = fd.readlines()[0].strip()
-            if themes_dirs:
-                return get_theme_path_real(parent, themes_dirs)
-            return parent
+            return get_theme_path_real(parent, themes_dirs) if themes_dirs else parent
         return None
 
 
@@ -715,7 +685,7 @@ def load_messages(themes, translations, default_lang, themes_dirs):
         _reload(english)
         for lang in translations.keys():
             try:
-                translation = __import__('messages_' + lang)
+                translation = __import__(f'messages_{lang}')
                 # If we don't do the reload, the module is cached
                 _reload(translation)
                 found[lang] = True
@@ -761,7 +731,7 @@ def copy_tree(src, dst, link_cutoff=None, ignored_filenames=None):
 
     ignored_filenames is a set of file names that will be ignored.
     """
-    ignore = set(['.svn', '.git']) | (ignored_filenames or set())
+    ignore = {'.svn', '.git'} | (ignored_filenames or set())
     base_len = len(src.split(os.sep))
     for root, dirs, files in os.walk(src, followlinks=True):
         root_parts = root.split(os.sep)
@@ -879,8 +849,7 @@ def encodelink(iri):
         link['netloc'] = link['netloc'].encode('utf-8').decode('idna').encode('idna').decode('utf-8')
     except UnicodeDecodeError:
         link['netloc'] = link['netloc'].encode('idna').decode('utf-8')
-    encoded_link = urlunparse(link.values())
-    return encoded_link
+    return urlunparse(link.values())
 
 
 def full_path_from_urlparse(parsed) -> str:
@@ -952,11 +921,11 @@ def get_tzname(dt):
 
 def current_time(tzinfo=None):
     """Get current time."""
-    if tzinfo is not None:
-        dt = datetime.datetime.now(tzinfo)
-    else:
-        dt = datetime.datetime.now(dateutil.tz.tzlocal())
-    return dt
+    return (
+        datetime.datetime.now(tzinfo)
+        if tzinfo is not None
+        else datetime.datetime.now(dateutil.tz.tzlocal())
+    )
 
 
 from nikola import filters as task_filters  # NOQA
@@ -1095,7 +1064,7 @@ def get_asset_path(path, themes, files_folders={'files': ''}, output_dir='output
             return candidate
     for src, rel_dst in files_folders.items():
         relpath = os.path.normpath(os.path.relpath(path, rel_dst))
-        if not relpath.startswith('..' + os.path.sep):
+        if not relpath.startswith(f'..{os.path.sep}'):
             candidate = os.path.abspath(os.path.join(src, relpath))
             if os.path.isfile(candidate):
                 return candidate
@@ -1340,8 +1309,7 @@ def split_explicit_title(text):
 
     From Sphinx's "sphinx/util/nodes.py"
     """
-    match = explicit_title_re.match(text)
-    if match:
+    if match := explicit_title_re.match(text):
         return True, match.group(1), match.group(2)
     return False, text, text
 
@@ -1350,8 +1318,7 @@ def first_line(doc):
     """Extract first non-blank line from text, to extract docstring title."""
     if doc is not None:
         for line in doc.splitlines():
-            striped = line.strip()
-            if striped:
+            if striped := line.strip():
                 return striped
     return ''
 
@@ -1378,8 +1345,8 @@ def demote_headers(doc, level=1):
         if before == after:
             continue
 
-        elements = doc.xpath('//h{}'.format(before))
-        new_tag = 'h{}'.format(after)
+        elements = doc.xpath(f'//h{before}')
+        new_tag = f'h{after}'
         for element in elements:
             element.tag = new_tag
 
@@ -1393,12 +1360,11 @@ def get_root_dir():
     while True:
         if os.path.exists(os.path.join(root, confname)):
             return root
-        else:
-            basedir = os.path.split(root)[0]
-            # Top directory, already checked
-            if basedir == root:
-                break
-            root = basedir
+        basedir = os.path.split(root)[0]
+        # Top directory, already checked
+        if basedir == root:
+            break
+        root = basedir
 
     return None
 
@@ -1446,7 +1412,7 @@ def get_translation_candidate(config, path, lang):
     pattern = pattern.replace('{lang}', '(?P<lang>{0})'.format('|'.join(config['TRANSLATIONS'].keys())))
     m = re.match(pattern, path)
     if m and all(m.groups()):  # It's a translated path
-        p, e, l = m.group('path'), m.group('ext'), m.group('lang')
+        p, e, l = m['path'], m['ext'], m['lang']
         if l == lang:  # Nothing to do
             return path
         elif lang == config['DEFAULT_LANG']:  # Return untranslated path
@@ -1497,9 +1463,13 @@ def write_metadata(data, metadata_format=None, comment_wrap=False, site=None, co
         extractor.check_requirements()
         return extractor.write_metadata(data, comment_wrap)
     elif extractor and metadata_format not in default_meta:
-        LOGGER.warning('Writing METADATA_FORMAT {} is not supported, using "nikola" format'.format(metadata_format))
+        LOGGER.warning(
+            f'Writing METADATA_FORMAT {metadata_format} is not supported, using "nikola" format'
+        )
     elif metadata_format not in default_meta:
-        LOGGER.warning('Unknown METADATA_FORMAT {}, using "nikola" format'.format(metadata_format))
+        LOGGER.warning(
+            f'Unknown METADATA_FORMAT {metadata_format}, using "nikola" format'
+        )
 
     if metadata_format == 'rest_docinfo':
         title = data['title']
@@ -1538,12 +1508,12 @@ def bool_from_meta(meta, key, fallback=False, blank=None):
 
 def ask(query, default=None):
     """Ask a question."""
-    if default:
-        default_q = ' [{0}]'.format(default)
-    else:
-        default_q = ''
-    inp = input("{query}{default_q}: ".format(query=query, default_q=default_q)).strip()
-    if inp or default is None:
+    default_q = ' [{0}]'.format(default) if default else ''
+    if inp := input(
+        "{query}{default_q}: ".format(query=query, default_q=default_q)
+    ).strip():
+        return inp
+    elif default is None:
         return inp
     else:
         return default
@@ -1557,8 +1527,9 @@ def ask_yesno(query, default=None):
         default_q = ' [Y/n]'
     elif default is False:
         default_q = ' [y/N]'
-    inp = input("{query}{default_q} ".format(query=query, default_q=default_q)).strip()
-    if inp:
+    if inp := input(
+        "{query}{default_q} ".format(query=query, default_q=default_q)
+    ).strip():
         return inp.lower().startswith('y')
     elif default is not None:
         return default
@@ -1575,7 +1546,7 @@ class CommandWrapper(object):
         self.commands_object = commands_object
 
     def __call__(self, *args, **kwargs):
-        if args or (not args and not kwargs):
+        if args or not kwargs:
             self.commands_object._run([self.cmd] + list(args))
         else:
             # Here's where the keyword magic would have to go
@@ -1662,9 +1633,13 @@ Available commands: {0}.""".format(', '.join(self._cmdnames))
 
 def options2docstring(name, options):
     """Translate options to a docstring."""
-    result = ['Function wrapper for command %s' % name, 'arguments:']
-    for opt in options:
-        result.append('{0} type {1} default {2}'.format(opt.name, opt.type.__name__, opt.default))
+    result = [f'Function wrapper for command {name}', 'arguments:']
+    result.extend(
+        '{0} type {1} default {2}'.format(
+            opt.name, opt.type.__name__, opt.default
+        )
+        for opt in options
+    )
     return '\n'.join(result)
 
 
@@ -1701,8 +1676,7 @@ class NikolaPygmentsHTML(BetterHtmlFormatter):
         classes = ' '.join(self.nclasses)
 
         yield 0, ('<pre class="{0}"'.format(classes) + (style and ' style="{0}"'.format(style)) + '>')
-        for tup in source:
-            yield tup
+        yield from source
         yield 0, '</pre>'
 
 
@@ -1741,9 +1715,9 @@ def adjust_name_for_index_path_list(path_list, i, displayed_i, lang, site, force
             i = 0
         if not extension:
             _, extension = os.path.splitext(index_file)
-        if len(path_list) > 0 and path_list[-1] == '':
+        if path_list and path_list[-1] == '':
             path_list[-1] = index_file
-        elif len(path_list) == 0 or not path_list[-1].endswith(extension):
+        elif not path_list or not path_list[-1].endswith(extension):
             path_list.append(index_file)
         if site.config["PRETTY_URLS"] and site.config["INDEXES_PRETTY_PAGE_URL"](lang) and path_list[-1] == index_file:
             path_schema = site.config["INDEXES_PRETTY_PAGE_URL"](lang)
@@ -1753,8 +1727,12 @@ def adjust_name_for_index_path_list(path_list, i, displayed_i, lang, site, force
             path_schema = None
         if path_schema is not None:
             del path_list[-1]
-            for entry in path_schema:
-                path_list.append(entry.format(number=displayed_i, old_number=i, index_file=index_file))
+            path_list.extend(
+                entry.format(
+                    number=displayed_i, old_number=i, index_file=index_file
+                )
+                for entry in path_schema
+            )
         else:
             path_list[-1] = '{0}-{1}{2}'.format(os.path.splitext(path_list[-1])[0], i, extension)
     return path_list
@@ -1783,9 +1761,13 @@ def adjust_name_for_index_path(name, i, displayed_i, lang, site, force_addition=
 def adjust_name_for_index_link(name, i, displayed_i, lang, site, force_addition=False, extension=None):
     """Return link for a given index file."""
     link = adjust_name_for_index_path_list(name.split('/'), i, displayed_i, lang, site, force_addition, extension)
-    if not extension == ".atom":
-        if len(link) > 0 and link[-1] == site.config["INDEX_FILE"] and site.config["STRIP_INDEXES"]:
-            link[-1] = ''
+    if (
+        extension != ".atom"
+        and len(link) > 0
+        and link[-1] == site.config["INDEX_FILE"]
+        and site.config["STRIP_INDEXES"]
+    ):
+        link[-1] = ''
     return '/'.join(link)
 
 
@@ -2025,23 +2007,21 @@ def parselinenos(spec: str, total: int) -> List[int]:
 
     Example: "1,2,4-6" -> [0, 1, 3, 4, 5]
     """
-    items = list()
+    items = []
     parts = spec.split(',')
     for part in parts:
         try:
             begend = part.strip().split('-')
-            if ['', ''] == begend:
+            if ['', ''] == begend or len(begend) not in [1, 2]:
                 raise ValueError
             elif len(begend) == 1:
                 items.append(int(begend[0]) - 1)
-            elif len(begend) == 2:
+            else:
                 start = int(begend[0] or 1)  # left half open (cf. -10)
                 end = int(begend[1] or max(start, total))  # right half open (cf. 10-)
                 if start > end:  # invalid range (cf. 10-1)
                     raise ValueError
                 items.extend(range(start - 1, end))
-            else:
-                raise ValueError
         except Exception as exc:
             raise ValueError('invalid line number spec: %r' % spec) from exc
     return items
@@ -2093,13 +2073,14 @@ class ClassificationTranslationManager(object):
         cldata = clmap.get(classification)
         if cldata is None:
             return []
-        else:
-            result = []
-            for other_lang, classifications in cldata.items():
-                for other_classification in classifications:
-                    if other_classification in classifications_per_language[other_lang]:
-                        result.append((other_lang, other_classification))
-            return result
+        result = []
+        for other_lang, classifications in cldata.items():
+            result.extend(
+                (other_lang, other_classification)
+                for other_classification in classifications
+                if other_classification in classifications_per_language[other_lang]
+            )
+        return result
 
     def has_translations(self, classification, lang):
         """Return whether we know about the classification in that language.
@@ -2146,13 +2127,15 @@ class ClassificationTranslationManager(object):
         ``posts_per_classification_per_language``.
         """
         # Add translations
-        for record in site.config.get('{}_TRANSLATIONS'.format(basename), []):
+        for record in site.config.get(f'{basename}_TRANSLATIONS', []):
             self.add_translation(record)
         # Add default translations
-        if site.config.get('{}_TRANSLATIONS_ADD_DEFAULTS'.format(basename), add_defaults_default):
+        if site.config.get(
+            f'{basename}_TRANSLATIONS_ADD_DEFAULTS', add_defaults_default
+        ):
             self.add_defaults(posts_per_classification_per_language)
         # Use blinker to inform interested parties (plugins) that they can add
         # translations themselves
         args = {'translation_manager': self, 'site': site,
                 'posts_per_classification_per_language': posts_per_classification_per_language}
-        signal('{}_translations_config'.format(basename.lower())).send(args)
+        signal(f'{basename.lower()}_translations_config').send(args)

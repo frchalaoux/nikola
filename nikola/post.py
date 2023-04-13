@@ -189,12 +189,12 @@ class Post(object):
             else:
                 _tag_list = self.meta[lang]['tags'].split(',')
             self._tags[lang] = natsort.natsorted(
-                list(set([x.strip() for x in _tag_list])),
-                alg=natsort.ns.F | natsort.ns.IC)
+                list({x.strip() for x in _tag_list}),
+                alg=natsort.ns.F | natsort.ns.IC,
+            )
             self._tags[lang] = [t for t in self._tags[lang] if t]
 
-            status = self.meta[lang].get('status')
-            if status:
+            if status := self.meta[lang].get('status'):
                 if status == 'published':
                     pass  # already set before, mixing published + something else should result in the other thing
                 elif status == 'featured':
@@ -253,12 +253,14 @@ class Post(object):
         self.post_name = os.path.splitext(source_path)[0]  # posts/blah
         _relpath = os.path.relpath(self.post_name)
         if _relpath != self.post_name:
-            self.post_name = _relpath.replace('..' + os.sep, '__dotdot__' + os.sep)
+            self.post_name = _relpath.replace(f'..{os.sep}', f'__dotdot__{os.sep}')
         # cache[\/]posts[\/]blah.html
-        self.base_path = os.path.join(self.config['CACHE_FOLDER'], self.post_name + ".html")
+        self.base_path = os.path.join(
+            self.config['CACHE_FOLDER'], f"{self.post_name}.html"
+        )
         # cache/posts/blah.html
         self._base_path = self.base_path.replace('\\', '/')
-        self.metadata_path = self.post_name + ".meta"  # posts/blah.meta
+        self.metadata_path = f"{self.post_name}.meta"
 
     def _set_translated_to(self):
         """Find post's translations."""
@@ -268,12 +270,15 @@ class Post(object):
                 self.translated_to.add(lang)
 
         # If we don't have anything in translated_to, the file does not exist
-        if not self.translated_to and os.path.isfile(self.source_path):
-            raise Exception(("Could not find translations for {}, check your "
-                            "TRANSLATIONS_PATTERN").format(self.source_path))
-        elif not self.translated_to:
-            raise Exception(("Cannot use {} (not a file, perhaps a broken "
-                            "symbolic link?)").format(self.source_path))
+        if not self.translated_to:
+            if os.path.isfile(self.source_path):
+                raise Exception(
+                    f"Could not find translations for {self.source_path}, check your TRANSLATIONS_PATTERN"
+                )
+            else:
+                raise Exception(
+                    f"Cannot use {self.source_path} (not a file, perhaps a broken symbolic link?)"
+                )
 
     def _set_folders(self, destination, destination_base):
         """Compose destination paths."""
@@ -331,7 +336,7 @@ class Post(object):
         for lang in self.translations:
             if lang != self.default_lang:
                 meta = defaultdict(lambda: '')
-                meta.update(default_metadata)
+                meta |= default_metadata
                 _meta, _extractors = get_meta(self, lang)
                 meta.update(_meta)
                 self.meta[lang] = meta
@@ -357,10 +362,13 @@ class Post(object):
         try:
             self.date = to_datetime(self.meta[self.default_lang]['date'], self.config['__tzinfo__'])
         except ValueError:
-            if not self.meta[self.default_lang]['date']:
-                msg = 'Missing date in file {}'.format(self.source_path)
-            else:
-                msg = "Invalid date '{0}' in file {1}".format(self.meta[self.default_lang]['date'], self.source_path)
+            msg = (
+                "Invalid date '{0}' in file {1}".format(
+                    self.meta[self.default_lang]['date'], self.source_path
+                )
+                if self.meta[self.default_lang]['date']
+                else f'Missing date in file {self.source_path}'
+            )
             LOGGER.error(msg)
             raise ValueError(msg)
 
@@ -377,9 +385,7 @@ class Post(object):
     @property
     def is_two_file(self):
         """Post has a separate .meta file."""
-        if self._is_two_file is None:
-            return True
-        return self._is_two_file
+        return True if self._is_two_file is None else self._is_two_file
 
     @is_two_file.setter
     def is_two_file(self, value):
@@ -400,7 +406,9 @@ class Post(object):
             # Changing the value, this means you are transforming a 2-file
             # into a 1-file or viceversa.
             if value and not self.compiler.supports_metadata:
-                raise ValueError("Can't save metadata as 1-file using this compiler {}".format(self.compiler))
+                raise ValueError(
+                    f"Can't save metadata as 1-file using this compiler {self.compiler}"
+                )
             for lang in self.translated_to:
                 source = self.source(lang)
                 meta = self.meta(lang)
@@ -424,7 +432,11 @@ class Post(object):
             for kk, vv in v.items():
                 if vv:
                     sub_meta[kk] = vv
-        m.update(str(json.dumps(clean_meta, cls=utils.CustomEncoder, sort_keys=True)).encode('utf-8'))
+        m.update(
+            json.dumps(clean_meta, cls=utils.CustomEncoder, sort_keys=True).encode(
+                'utf-8'
+            )
+        )
         return '<Post: {0!r} {1}>'.format(self.source_path, m.hexdigest())
 
     def has_pretty_url(self, lang):
@@ -457,13 +469,16 @@ class Post(object):
                 return True
             if self.config['USE_TAG_METADATA']:
                 return 'mathjax' in self.tags_for_language(lang)
-        # If it has math in ANY other language, enable it. Better inefficient than broken.
-        for lang in self.translated_to:
-            if bool_from_meta(self.meta[lang], 'has_math'):
-                return True
-        if self.config['USE_TAG_METADATA']:
-            return 'mathjax' in self.alltags
-        return False
+        return next(
+            (
+                True
+                for lang in self.translated_to
+                if bool_from_meta(self.meta[lang], 'has_math')
+            ),
+            'mathjax' in self.alltags
+            if self.config['USE_TAG_METADATA']
+            else False,
+        )
 
     @property
     def alltags(self):
@@ -495,11 +510,11 @@ class Post(object):
         """Return previous post."""
         lang = nikola.utils.LocaleBorg().current_lang
         rv = self._prev_post
-        while self.skip_untranslated:
-            if rv is None:
-                break
-            if rv.is_translation_available(lang):
-                break
+        while (
+            self.skip_untranslated
+            and rv is not None
+            and not rv.is_translation_available(lang)
+        ):
             rv = rv._prev_post
         return rv
 
@@ -513,11 +528,11 @@ class Post(object):
         """Return next post."""
         lang = nikola.utils.LocaleBorg().current_lang
         rv = self._next_post
-        while self.skip_untranslated:
-            if rv is None:
-                break
-            if rv.is_translation_available(lang):
-                break
+        while (
+            self.skip_untranslated
+            and rv is not None
+            and not rv.is_translation_available(lang)
+        ):
             rv = rv._next_post
         return rv
 
@@ -558,12 +573,11 @@ class Post(object):
         """
         if lang is None:
             lang = nikola.utils.LocaleBorg().current_lang
-        if self.meta[lang]['author']:
-            author = self.meta[lang]['author']
-        else:
-            author = self.config['BLOG_AUTHOR'](lang)
-
-        return author
+        return (
+            self.meta[lang]['author']
+            if self.meta[lang]['author']
+            else self.config['BLOG_AUTHOR'](lang)
+        )
 
     def authors(self, lang=None) -> list:
         """Return localized authors or BLOG_AUTHOR if unspecified.
@@ -573,12 +587,11 @@ class Post(object):
         """
         if lang is None:
             lang = nikola.utils.LocaleBorg().current_lang
-        if self.meta[lang]['author']:
-            author = [i.strip() for i in self.meta[lang]['author'].split(",")]
-        else:
-            author = [self.config['BLOG_AUTHOR'](lang)]
-
-        return author
+        return (
+            [i.strip() for i in self.meta[lang]['author'].split(",")]
+            if self.meta[lang]['author']
+            else [self.config['BLOG_AUTHOR'](lang)]
+        )
 
     def description(self, lang=None):
         """Return localized description."""
@@ -590,12 +603,11 @@ class Post(object):
         """Return localized GUID."""
         if lang is None:
             lang = nikola.utils.LocaleBorg().current_lang
-        if self.meta[lang]['guid']:
-            guid = self.meta[lang]['guid']
-        else:
-            guid = self.permalink(lang, absolute=True)
-
-        return guid
+        return (
+            self.meta[lang]['guid']
+            if self.meta[lang]['guid']
+            else self.permalink(lang, absolute=True)
+        )
 
     def add_dependency(self, dependency, add='both', lang=None):
         """Add a file dependency for tasks using that post.
@@ -614,9 +626,9 @@ class Post(object):
         """
         if add not in {'fragment', 'page', 'both'}:
             raise Exception("Add parameter is '{0}', but must be either 'fragment', 'page', or 'both'.".format(add))
-        if add == 'fragment' or add == 'both':
+        if add in ['fragment', 'both']:
             self._dependency_file_fragment[lang].append((not isinstance(dependency, str), dependency))
-        if add == 'page' or add == 'both':
+        if add in ['page', 'both']:
             self._dependency_file_page[lang].append((not isinstance(dependency, str), dependency))
 
     def add_dependency_uptodate(self, dependency, is_callable=False, add='both', lang=None):
@@ -644,9 +656,9 @@ class Post(object):
         post.add_dependency_uptodate(
             utils.config_changed({1: some_data}, 'uniqueid'), False, 'page')
         """
-        if add == 'fragment' or add == 'both':
+        if add in ['fragment', 'both']:
             self._dependency_uptodate_fragment[lang].append((is_callable, dependency))
-        if add == 'page' or add == 'both':
+        if add in ['page', 'both']:
             self._dependency_uptodate_page[lang].append((is_callable, dependency))
 
     def register_depfile(self, dep, dest=None, lang=None):
@@ -659,26 +671,20 @@ class Post(object):
     def write_depfile(dest, deps_list, post=None, lang=None):
         """Write a depfile for a given language."""
         if post is None or lang is None:
-            deps_path = dest + '.dep'
+            deps_path = f'{dest}.dep'
         else:
             deps_path = post.compiler.get_dep_filename(post, lang)
         if deps_list or (post.compiler.use_dep_file if post else False):
             deps_list = [p for p in deps_list if p != dest]  # Don't depend on yourself (#1671)
             with io.open(deps_path, "w+", encoding="utf-8") as deps_file:
                 deps_file.write('\n'.join(deps_list))
-        else:
-            if os.path.isfile(deps_path):
-                os.unlink(deps_path)
+        elif os.path.isfile(deps_path):
+            os.unlink(deps_path)
 
     def _get_dependencies(self, deps_list):
         deps = []
         for dep in deps_list:
-            if dep[0]:
-                # callable
-                result = dep[1]()
-            else:
-                # can add directly
-                result = dep[1]
+            result = dep[1]() if dep[0] else dep[1]
             # if result is a list, add its contents
             if isinstance(result, list):
                 deps.extend(result)
@@ -688,9 +694,7 @@ class Post(object):
 
     def deps(self, lang):
         """Return a list of file dependencies to build this post's page."""
-        deps = []
-        deps.append(self.base_path)
-        deps.append(self.source_path)
+        deps = [self.base_path, self.source_path]
         if os.path.exists(self.metadata_path):
             deps.append(self.metadata_path)
         if lang != self.default_lang:
@@ -716,7 +720,12 @@ class Post(object):
         deps = []
         deps += self._get_dependencies(self._dependency_uptodate_page[lang])
         deps += self._get_dependencies(self._dependency_uptodate_page[None])
-        deps.append(utils.config_changed({1: sorted(self.compiler.config_dependencies)}, 'nikola.post.Post.deps_uptodate:compiler:' + self.source_path))
+        deps.append(
+            utils.config_changed(
+                {1: sorted(self.compiler.config_dependencies)},
+                f'nikola.post.Post.deps_uptodate:compiler:{self.source_path}',
+            )
+        )
         return deps
 
     def compile(self, lang):
@@ -764,7 +773,12 @@ class Post(object):
         deps = []
         deps += self._get_dependencies(self._dependency_uptodate_fragment[lang])
         deps += self._get_dependencies(self._dependency_uptodate_fragment[None])
-        deps.append(utils.config_changed({1: sorted(self.compiler.config_dependencies)}, 'nikola.post.Post.deps_uptodate:compiler:' + self.source_path))
+        deps.append(
+            utils.config_changed(
+                {1: sorted(self.compiler.config_dependencies)},
+                f'nikola.post.Post.deps_uptodate:compiler:{self.source_path}',
+            )
+        )
         return deps
 
     def is_translation_available(self, lang):
@@ -824,7 +838,9 @@ class Post(object):
         if lang is None:
             lang = nikola.utils.LocaleBorg().current_lang
         if lang not in self.translated_to:
-            raise ValueError("Can't save post metadata to language [{}] it's not translated to.".format(lang))
+            raise ValueError(
+                f"Can't save post metadata to language [{lang}] it's not translated to."
+            )
 
         source = self.source(lang)
         source_path = self.translated_source_path(lang)
@@ -863,11 +879,11 @@ class Post(object):
         source = self.translated_source_path(lang)
         with open(source, 'r', encoding='utf-8-sig') as inf:
             data = inf.read()
-        if self.is_two_file:  # Metadata is not here
-            source_data = data
-        else:
-            source_data = self.compiler.split_metadata(data, self, lang)[1]
-        return source_data
+        return (
+            data
+            if self.is_two_file
+            else self.compiler.split_metadata(data, self, lang)[1]
+        )
 
     def text(self, lang=None, teaser_only=False, strip_html=False, show_read_more_link=True,
              feed_read_more_link=False, feed_links_append_query=None):
@@ -936,15 +952,15 @@ class Post(object):
                 document = lxml.html.fromstring(teaser)
                 data = utils.html_tostring_fragment(document)
 
-        if data and strip_html:
-            try:
-                # Not all posts have a body. For example, you may have a page statically defined in the template that does not take content as input.
-                content = lxml.html.fromstring(data)
-                data = content.text_content().strip()  # No whitespace wanted.
-            except (lxml.etree.ParserError, ValueError):
-                data = ""
-        elif data:
-            if self.demote_headers:
+        if data:
+            if strip_html:
+                try:
+                    # Not all posts have a body. For example, you may have a page statically defined in the template that does not take content as input.
+                    content = lxml.html.fromstring(data)
+                    data = content.text_content().strip()  # No whitespace wanted.
+                except (lxml.etree.ParserError, ValueError):
+                    data = ""
+            elif self.demote_headers:
                 # see above
                 try:
                     document = lxml.html.fragment_fromstring(data, "body")
@@ -964,9 +980,9 @@ class Post(object):
             words = len(text.split())
             markup = lxml.html.fromstring(self.text(strip_html=False))
             embeddables = [".//img", ".//picture", ".//video", ".//audio", ".//object", ".//iframe"]
-            media_time = 0
-            for embedded in embeddables:
-                media_time += (len(markup.findall(embedded)) * 0.33)  # +20 seconds
+            media_time = sum(
+                (len(markup.findall(embedded)) * 0.33) for embedded in embeddables
+            )
             self._reading_time = int(ceil((words / words_per_minute) + media_time)) or 1
         return self._reading_time
 
@@ -1036,8 +1052,12 @@ class Post(object):
             lang = nikola.utils.LocaleBorg().current_lang
         folder = self.folders[lang]
         if self.has_pretty_url(lang):
-            path = os.path.join(self.translations[lang],
-                                folder, self.meta[lang]['slug'], 'index' + extension)
+            path = os.path.join(
+                self.translations[lang],
+                folder,
+                self.meta[lang]['slug'],
+                f'index{extension}',
+            )
         else:
             path = os.path.join(self.translations[lang],
                                 folder, self.meta[lang]['slug'] + extension)
@@ -1059,7 +1079,7 @@ class Post(object):
         pieces = self.translations[lang].split(os.sep)
         pieces += self.folders[lang].split(os.sep)
         if self.has_pretty_url(lang):
-            pieces += [self.meta[lang]['slug'], 'index' + extension]
+            pieces += [self.meta[lang]['slug'], f'index{extension}']
         else:
             pieces += [self.meta[lang]['slug'] + extension]
         pieces = [_f for _f in pieces if _f and _f != '.']
@@ -1067,10 +1087,13 @@ class Post(object):
         if absolute:
             link = urljoin(self.base_url, link[1:])
         index_len = len(self.index_file)
-        if self.strip_indexes and link[-(1 + index_len):] == '/' + self.index_file:
+        if (
+            self.strip_indexes
+            and link[-(1 + index_len) :] == f'/{self.index_file}'
+        ):
             link = link[:-index_len]
         if query:
-            link = link + "?" + query
+            link = f"{link}?{query}"
         link = utils.encodelink(link)
         return link
 
@@ -1098,11 +1121,7 @@ class Post(object):
         """
         ext = os.path.splitext(self.source_path)[1]
         # do not publish PHP sources
-        if prefix and ext == '.html':
-            # ext starts with a dot
-            return '.src' + ext
-        else:
-            return ext
+        return f'.src{ext}' if prefix and ext == '.html' else ext
 
     def should_hide_title(self):
         """Return True if this post's title should be hidden. Use in templates to manage posts without titles."""
@@ -1117,10 +1136,11 @@ class Post(object):
 def get_metadata_from_file(source_path, post, config, lang, metadata_extractors_by):
     """Extract metadata from the file itself, by parsing contents."""
     try:
-        if lang and config:
-            source_path = get_translation_candidate(config, source_path, lang)
-        elif lang:
-            source_path += '.' + lang
+        if lang:
+            if config:
+                source_path = get_translation_candidate(config, source_path, lang)
+            else:
+                source_path += f'.{lang}'
         with io.open(source_path, "r", encoding="utf-8-sig") as meta_file:
             source_text = meta_file.read()
     except (UnicodeDecodeError, UnicodeEncodeError):
@@ -1138,15 +1158,11 @@ def get_metadata_from_file(source_path, post, config, lang, metadata_extractors_
             if not metadata_extractors.check_conditions(post, source_path, extractor.conditions, config, source_text):
                 continue
             extractor.check_requirements()
-            new_meta = extractor.extract_text(source_text)
-            if new_meta:
+            if new_meta := extractor.extract_text(source_text):
                 found_in_priority = True
                 used_extractor = extractor
-                # Map metadata from other platforms to names Nikola expects (Issue #2817)
-                # Map metadata values (Issue #3025)
-                map_metadata(new_meta, extractor.map_from, config)
-
-                meta.update(new_meta)
+                map_metadata(new_meta, used_extractor.map_from, config)
+                meta |= new_meta
                 break
 
         if found_in_priority:
@@ -1156,11 +1172,11 @@ def get_metadata_from_file(source_path, post, config, lang, metadata_extractors_
 
 def get_metadata_from_meta_file(path, post, config, lang, metadata_extractors_by=None):
     """Take a post path, and gets data from a matching .meta file."""
-    meta_path = os.path.splitext(path)[0] + '.meta'
+    meta_path = f'{os.path.splitext(path)[0]}.meta'
     if lang and config:
         meta_path = get_translation_candidate(config, meta_path, lang)
     elif lang:
-        meta_path += '.' + lang
+        meta_path += f'.{lang}'
     if os.path.isfile(meta_path):
         return get_metadata_from_file(meta_path, post, config, lang, metadata_extractors_by)
     elif lang:
@@ -1193,7 +1209,7 @@ def get_meta(post, lang):
         for extractor in extractors:
             if not metadata_extractors.check_conditions(post, post.source_path, extractor.conditions, config, None):
                 continue
-            meta.update(extractor.extract_filename(post.source_path, lang))
+            meta |= extractor.extract_filename(post.source_path, lang)
 
     # Fetch compiler metadata (priority 2, overrides filename-based metadata).
     compiler_meta = {}
@@ -1251,10 +1267,10 @@ def hyphenate(dom, _lang):
             LOGGER.error("Pyphen cannot be installed to ~/.local (pip install --user).")
     if hyphenator is not None:
         for tag in ('p', 'li', 'span'):
-            for node in dom.xpath("//%s[not(parent::pre)]" % tag):
+            for node in dom.xpath(f"//{tag}[not(parent::pre)]"):
                 skip_node = False
-                skippable_nodes = ['kbd', 'pre', 'code', 'samp', 'mark', 'math', 'data', 'ruby', 'svg']
                 if node.getchildren():
+                    skippable_nodes = ['kbd', 'pre', 'code', 'samp', 'mark', 'math', 'data', 'ruby', 'svg']
                     for child in node.getchildren():
                         if child.tag in skippable_nodes or (child.tag == 'span' and 'math'
                                                             in child.get('class', [])):
@@ -1286,7 +1302,7 @@ def insert_hyphens(node, hyphenator):
         )
         # Spaces are trimmed, we have to add them manually back
         if text[0].isspace():
-            new_data = ' ' + new_data
+            new_data = f' {new_data}'
         if text[-1].isspace():
             new_data += ' '
         setattr(node, attr, new_data)

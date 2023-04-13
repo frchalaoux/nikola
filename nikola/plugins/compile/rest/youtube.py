@@ -80,17 +80,14 @@ class Youtube(Directive):
             'yid': self.arguments[0],
             'width': 560,
             'height': 315,
-        }
-        options.update({k: v for k, v in self.options.items() if v})
+        } | {k: v for k, v in self.options.items() if v}
         if self.options.get('align') in _align_options_base:
             options['align'] = ' align-' + self.options['align']
         else:
             options['align'] = ''
 
-        start_at = options.get('start_at')
-
-        if start_at:
-            options['start_at'] = '&start=' + start_at
+        if start_at := options.get('start_at'):
+            options['start_at'] = f'&start={start_at}'
         else:
             options['start_at'] = ''
 

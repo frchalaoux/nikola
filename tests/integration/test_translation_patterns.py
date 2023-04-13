@@ -39,8 +39,8 @@ def build(target_dir, test_dir, other_locale):
             shutil.copy2(src_file, dst_file)
 
     os.rename(
-        os.path.join(target_dir, "pages", "1.%s.txt" % other_locale),
-        os.path.join(target_dir, "pages", "1.txt.%s" % other_locale),
+        os.path.join(target_dir, "pages", f"1.{other_locale}.txt"),
+        os.path.join(target_dir, "pages", f"1.txt.{other_locale}"),
     )
 
     patch_config(

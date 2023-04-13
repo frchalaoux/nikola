@@ -87,7 +87,7 @@ def _doc_link(rawtext, text, options={}, content=[]):
         title = post.title()
     permalink = post.permalink()
     if fragment:
-        permalink += '#' + fragment
+        permalink += f'#{fragment}'
 
     return True, twin_slugs, title, permalink, slug
 
@@ -128,5 +128,4 @@ def doc_shortcode(*args, **kwargs):
 
 def make_link_node(rawtext, text, url, options):
     """Make a reST link node."""
-    node = nodes.reference(rawtext, text, refuri=url, *options)
-    return node
+    return nodes.reference(rawtext, text, refuri=url, *options)

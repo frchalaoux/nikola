@@ -19,7 +19,7 @@ if not args.TAG[0].startswith("v"):
     print("WARNING: tag should start with v")
     i = input("Add `v` to tag? [y/n] ")
     if i.lower().strip().startswith('y'):
-        args.TAG[0] = 'v' + args.TAG[0]
+        args.TAG[0] = f'v{args.TAG[0]}'
 
 BASEDIR = os.getcwd()
 REPO = 'getnikola/nikola'

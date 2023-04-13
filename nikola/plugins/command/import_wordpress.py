@@ -75,10 +75,10 @@ def install_plugin(site, plugin_name, output_dir=None, show_install_notes=False)
         site.plugin_manager.activatePluginByName(plugin_installer_info.name)
         plugin_installer_info.plugin_object.set_site(site)
     plugin_installer = plugin_installer_info.plugin_object
-    # Try to install the requested plugin
-    options = {}
-    for option in plugin_installer.cmd_options:
-        options[option['name']] = option['default']
+    options = {
+        option['name']: option['default']
+        for option in plugin_installer.cmd_options
+    }
     options['install'] = plugin_name
     options['output_dir'] = output_dir
     options['show_install_notes'] = show_install_notes
@@ -340,7 +340,7 @@ to
 
         if self.export_categories_as_categories:
             wordpress_namespace = channel.nsmap['wp']
-            cat_map = dict()
+            cat_map = {}
             for cat in channel.findall('{{{0}}}category'.format(wordpress_namespace)):
                 # cat_id = get_text_tag(cat, '{{{0}}}term_id'.format(wordpress_namespace), None)
                 cat_slug = get_text_tag(cat, '{{{0}}}category_nicename'.format(wordpress_namespace), None)
@@ -350,7 +350,7 @@ to
                 if cat_parent_slug in cat_map:
                     cat_path = cat_map[cat_parent_slug] + cat_path
                 cat_map[cat_slug] = cat_path
-            self._category_paths = dict()
+            self._category_paths = {}
             for cat, path in cat_map.items():
                 self._category_paths[cat] = hierarchy_utils.join_hierarchical_category_path(path)
 
@@ -398,10 +398,7 @@ to
         # Add tag redirects
         for tag in self.all_tags:
             try:
-                if isinstance(tag, bytes):
-                    tag_str = tag.decode('utf8', 'replace')
-                else:
-                    tag_str = tag
+                tag_str = tag.decode('utf8', 'replace') if isinstance(tag, bytes) else tag
             except AttributeError:
                 tag_str = tag
             tag = utils.slugify(tag_str, self.lang)
@@ -431,11 +428,7 @@ to
         xml = []
 
         with open(filename, 'rb') as fd:
-            for line in fd:
-                # These explode etree and are useless
-                if b'<atom:link rel=' in line:
-                    continue
-                xml.append(line)
+            xml.extend(line for line in fd if b'<atom:link rel=' not in line)
         return b''.join(xml)
 
     @classmethod
@@ -449,8 +442,7 @@ to
         if xml_preprocessor:
             xml_string = xml_preprocessor(xml_string)
         tree = etree.fromstring(xml_string)
-        channel = tree.find('channel')
-        return channel
+        return tree.find('channel')
 
     def populate_context(self, channel):
         """Populate context with config for the site."""
@@ -538,8 +530,8 @@ to
             LOGGER.info("Downloading {0} => {1}".format(url, dst_path))
             self.download_url_content_to_file(url, dst_path)
         dst_url = '/'.join(dst_path.split(os.sep)[2:])
-        links[link] = '/' + dst_url
-        links[url] = '/' + dst_url
+        links[link] = f'/{dst_url}'
+        links[url] = f'/{dst_url}'
 
         files = [path]
         files_meta = [{}]
@@ -580,29 +572,30 @@ to
                         dst_meta = {}
 
                         def add(our_key, wp_key, is_int=False, ignore_zero=False, is_float=False):
-                            if wp_key in image_meta:
-                                value = image_meta[wp_key]
-                                if value in ("", b"") and (is_int or is_float):
-                                    if ignore_zero:
-                                        return
-                                    else:
-                                        dst_meta[our_key] = 0
-                                if is_int:
-                                    value = int(value)
-                                    if ignore_zero and value == 0:
-                                        return
-                                elif is_float:
-                                    # in some locales (like fr) and for old posts there may be a comma here.
-                                    if isinstance(value, bytes):
-                                        value = value.replace(b",", b".")
-                                    value = float(value)
-                                    if ignore_zero and value == 0:
-                                        return
+                            if wp_key not in image_meta:
+                                return
+                            value = image_meta[wp_key]
+                            if value in ("", b"") and (is_int or is_float):
+                                if ignore_zero:
+                                    return
                                 else:
-                                    value = value.decode('utf-8')  # assume UTF-8
-                                    if value == '':  # skip empty values
-                                        return
-                                dst_meta[our_key] = value
+                                    dst_meta[our_key] = 0
+                            if is_int:
+                                value = int(value)
+                                if ignore_zero and value == 0:
+                                    return
+                            elif is_float:
+                                # in some locales (like fr) and for old posts there may be a comma here.
+                                if isinstance(value, bytes):
+                                    value = value.replace(b",", b".")
+                                value = float(value)
+                                if ignore_zero and value == 0:
+                                    return
+                            else:
+                                value = value.decode('utf-8')  # assume UTF-8
+                                if value == '':  # skip empty values
+                                    return
+                            dst_meta[our_key] = value
 
                         add('aperture', b'aperture', is_float=True, ignore_zero=True)
                         add('credit', b'credit')
@@ -615,7 +608,7 @@ to
                         add('shutter_speed', b'shutter_speed', ignore_zero=True, is_float=True)
                         add('title', b'title')
 
-                        if len(dst_meta) > 0:
+                        if dst_meta:
                             files_meta[0]['meta'] = dst_meta
 
                     # Find other sizes of image
@@ -643,7 +636,7 @@ to
                             LOGGER.info("Downloading {0} => {1}".format(url, dst_path))
                             self.download_url_content_to_file(url, dst_path)
                         dst_url = '/'.join(dst_path.split(os.sep)[2:])
-                        links[url] = '/' + dst_url
+                        links[url] = f'/{dst_url}'
 
                         files.append(path)
                         files_meta.append(meta)
@@ -718,10 +711,7 @@ to
 
     def transform_multiple_newlines(self, content):
         """Replace multiple newlines with only two."""
-        if self.squash_newlines:
-            return re.sub(r'\n{3,}', r'\n\n', content)
-        else:
-            return content
+        return re.sub(r'\n{3,}', r'\n\n', content) if self.squash_newlines else content
 
     def transform_content(self, content, post_format, attachments):
         """Transform content into appropriate format."""
@@ -784,9 +774,7 @@ to
             approved = 'hold'
         elif approved == '1':
             approved = 'approved'
-        elif approved == 'spam' or approved == 'trash':
-            pass
-        else:
+        elif approved not in ['spam', 'trash']:
             LOGGER.warning("Unknown comment approved status: {0}".format(approved))
         parent = int(get_text_tag(comment, "{{{0}}}comment_parent".format(wordpress_namespace), 0))
         if parent == 0:
@@ -795,7 +783,7 @@ to
         if user_id == 0:
             user_id = None
 
-        if approved == 'trash' or approved == 'spam':
+        if approved in ['trash', 'spam']:
             return None
 
         return {"id": id, "status": str(approved), "approved": approved == "approved",
@@ -809,7 +797,7 @@ to
             if header_content is None:
                 return
             header_content = str(header_content).replace('\n', ' ')
-            line = '.. ' + header_field + ': ' + header_content + '\n'
+            line = f'.. {header_field}: {header_content}' + '\n'
             fd.write(line.encode('utf8'))
 
         with open(filename, "wb+") as fd:
@@ -826,8 +814,8 @@ to
             fd.write(('\n' + comment['content']).encode('utf8'))
 
     def _create_meta_and_content_filenames(self, slug, extension, lang, default_language, translations_config):
-        out_meta_filename = slug + '.meta'
-        out_content_filename = slug + '.' + extension
+        out_meta_filename = f'{slug}.meta'
+        out_content_filename = f'{slug}.{extension}'
         if lang and lang != default_language:
             out_meta_filename = utils.get_translation_candidate(translations_config,
                                                                 out_meta_filename, lang)
@@ -848,7 +836,7 @@ to
                 else:
                     cats.append(hierarchy_utils.join_hierarchical_category_path([utils.html_unescape(text)]))
             other_meta['categories'] = ','.join(cats)
-            if len(cats) > 0:
+            if cats:
                 other_meta['category'] = cats[0]
                 if len(cats) > 1:
                     LOGGER.warning(('Post "{0}" has more than one category! ' +
@@ -895,10 +883,7 @@ to
         path = unquote(parsed.path.strip('/'))
 
         try:
-            if isinstance(path, bytes):
-                path = path.decode('utf8', 'replace')
-            else:
-                path = path
+            path = path.decode('utf8', 'replace') if isinstance(path, bytes) else path
         except AttributeError:
             pass
 
@@ -941,14 +926,12 @@ to
         excerpt = get_text_tag(
             item, '{http://wordpress.org/export/1.2/excerpt/}encoded', None)
 
-        if excerpt is not None:
-            if len(excerpt) == 0:
-                excerpt = None
+        if excerpt is not None and len(excerpt) == 0:
+            excerpt = None
 
         tags = []
         categories = []
         post_status = 'published'
-        has_math = "no"
         if status == 'trash':
             LOGGER.warning('Trashed post "{0}" will not be imported.'.format(title))
             return False
@@ -976,9 +959,7 @@ to
             else:
                 tags.append(text)
 
-        if '$latex' in content:
-            has_math = "yes"
-
+        has_math = "yes" if '$latex' in content else "no"
         for i, cat in enumerate(categories[:]):
             cat = self._sanitize(cat, True)
             categories[i] = cat
@@ -991,8 +972,11 @@ to
 
         # Find post format if it's there
         post_format = 'wp'
-        format_tag = [x for x in item.findall('*//{%s}meta_key' % wordpress_namespace) if x.text == '_tc_post_format']
-        if format_tag:
+        if format_tag := [
+            x
+            for x in item.findall('*//{%s}meta_key' % wordpress_namespace)
+            if x.text == '_tc_post_format'
+        ]:
             post_format = format_tag[0].getparent().find('{%s}meta_value' % wordpress_namespace).text
             if post_format == 'wpautop':
                 post_format = 'wp'
@@ -1049,7 +1033,7 @@ to
                     "status": post_status,
                     "has_math": has_math,
                 }
-                meta.update(other_meta)
+                meta |= other_meta
                 if self.onefile:
                     self.write_post(
                         os.path.join(self.output_folder,
@@ -1128,12 +1112,13 @@ to
             else:
                 out_folder_slug = self.import_postpage_item(item, wordpress_namespace, 'pages', attachments)
             # Process attachment data
-            if attachments is not None:
-                # If post was exported, store data
-                if out_folder_slug:
-                    destination = os.path.join(self.output_folder, out_folder_slug[0],
-                                               out_folder_slug[1] + ".attachments.json")
-                    self.write_attachments_info(destination, attachments)
+            if attachments is not None and out_folder_slug:
+                destination = os.path.join(
+                    self.output_folder,
+                    out_folder_slug[0],
+                    f"{out_folder_slug[1]}.attachments.json",
+                )
+                self.write_attachments_info(destination, attachments)
 
     def import_posts(self, channel):
         """Import posts into the site."""
@@ -1145,9 +1130,13 @@ to
         for item in channel.findall('item'):
             self.process_item_if_post_or_page(item)
         # Assign attachments to posts
-        for post_id in self.attachments:
-            LOGGER.warning(("Found attachments for post or page #{0}, but didn't find post or page. " +
-                            "(Attachments: {1})").format(post_id, [e['files'][0] for e in self.attachments[post_id].values()]))
+        for post_id, value in self.attachments.items():
+            LOGGER.warning(
+                (
+                    "Found attachments for post or page #{0}, but didn't find post or page. "
+                    + "(Attachments: {1})"
+                ).format(post_id, [e['files'][0] for e in value.values()])
+            )
 
 
 def get_text_tag(tag, name, default):
@@ -1155,10 +1144,7 @@ def get_text_tag(tag, name, default):
     if tag is None:
         return default
     t = tag.find(name)
-    if t is not None and t.text is not None:
-        return t.text
-    else:
-        return default
+    return t.text if t is not None and t.text is not None else default
 
 
 def separate_qtranslate_tagged_langs(text):
@@ -1198,15 +1184,15 @@ def separate_qtranslate_tagged_langs(text):
             lang = ""  # default language
         if not lang:
             common_txt_list.append(c)
-            for l in content_by_lang.keys():
-                content_by_lang[l].append(c)
+            for value in content_by_lang.values():
+                value.append(c)
         else:
             content_by_lang[lang] = content_by_lang.get(lang, common_txt_list) + [c]
     # in case there was no language specific section, just add the text
     if common_txt_list and not content_by_lang:
         content_by_lang[""] = common_txt_list
     # Format back the list to simple text
-    for l in content_by_lang.keys():
+    for l in content_by_lang:
         content_by_lang[l] = " ".join(content_by_lang[l])
     return content_by_lang
 

@@ -21,10 +21,7 @@ from .test_empty_build import (  # NOQA
 
 def get_last_folder_as_id(value):
     """Use the last part of the directories as test identifier."""
-    if isinstance(value, (tuple,)):
-        return value[-1]
-
-    return value
+    return value[-1] if isinstance(value, (tuple,)) else value
 
 
 @pytest.mark.parametrize(
@@ -70,7 +67,7 @@ def test_page_index_in_subdir(build, output_dir, dirs, expected_index_file):
 def output_path_func():
     def output_path(dir, name):
         """Make a file path to the output."""
-        return os.path.join(dir, name + ".html")
+        return os.path.join(dir, f"{name}.html")
 
     return output_path
 

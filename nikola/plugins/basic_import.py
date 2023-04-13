@@ -66,22 +66,21 @@ class ImportMixin(object):
     def get_channel_from_file(cls, filename):
         """Get channel from XML file."""
         tree = etree.fromstring(cls.read_xml_file(filename))
-        channel = tree.find('channel')
-        return channel
+        return tree.find('channel')
 
     @staticmethod
     def configure_redirections(url_map, base_dir=''):
         """Configure redirections from an url_map."""
-        index = base_dir + 'index.html'
+        index = f'{base_dir}index.html'
         if index.startswith('/'):
             index = index[1:]
         redirections = []
         for k, v in url_map.items():
-            if not k[-1] == '/':
-                k = k + '/'
+            if k[-1] != '/':
+                k = f'{k}/'
 
             # remove the initial "/" because src is a relative file path
-            src = (urlparse(k).path + 'index.html')[1:]
+            src = f'{urlparse(k).path}index.html'[1:]
             dst = (urlparse(v).path)
             if src == index:
                 utils.LOGGER.warning("Can't do a redirect for: {0!r}".format(k))
@@ -92,20 +91,14 @@ class ImportMixin(object):
     def generate_base_site(self):
         """Generate a base Nikola site."""
         if not os.path.exists(self.output_folder):
-            os.system('nikola init -q ' + self.output_folder)
+            os.system(f'nikola init -q {self.output_folder}')
         else:
             self.import_into_existing_site = True
             utils.LOGGER.warning('The folder {0} already exists - assuming that this is a '
                                  'already existing Nikola site.'.format(self.output_folder))
 
         filename = resource_filename('nikola', 'conf.py.in')
-        # The 'strict_undefined=True' will give the missing symbol name if any,
-        # (ex: NameError: 'THEME' is not defined )
-        # for other errors from mako/runtime.py, you can add format_extensions=True ,
-        # then more info will be writen to *somefile* (most probably conf.py)
-        conf_template = Template(filename=filename, strict_undefined=True)
-
-        return conf_template
+        return Template(filename=filename, strict_undefined=True)
 
     @staticmethod
     def populate_context(channel):
@@ -159,8 +152,13 @@ class ImportMixin(object):
 
         utils.makedirs(os.path.dirname(filename))
         with io.open(filename, "w+", encoding="utf8") as fd:
-            data = {'title': title, 'slug': slug, 'date': post_date, 'tags': ','.join(tags), 'description': description}
-            data.update(kwargs)
+            data = {
+                'title': title,
+                'slug': slug,
+                'date': post_date,
+                'tags': ','.join(tags),
+                'description': description,
+            } | kwargs
             fd.write(utils.write_metadata(data, site=self.site, comment_wrap=False))
 
     @staticmethod
@@ -175,12 +173,14 @@ class ImportMixin(object):
 
     def get_configuration_output_path(self):
         """Get path for the output configuration file."""
-        if not self.import_into_existing_site:
-            filename = 'conf.py'
-        else:
-            filename = 'conf.py.{name}-{time}'.format(
+        filename = (
+            'conf.py.{name}-{time}'.format(
                 time=datetime.datetime.now().strftime('%Y%m%d_%H%M%S'),
-                name=self.name)
+                name=self.name,
+            )
+            if self.import_into_existing_site
+            else 'conf.py'
+        )
         config_output_path = os.path.join(self.output_folder, filename)
         utils.LOGGER.info('Configuration will be written to: {0}'.format(config_output_path))
 

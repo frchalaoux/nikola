@@ -90,11 +90,10 @@ class Vimeo(Directive):
             'height': VIDEO_DEFAULT_HEIGHT,
         }
         if self.request_size:
-            err = self.check_modules()
-            if err:
+            if err := self.check_modules():
                 return err
             self.set_video_size()
-        options.update(self.options)
+        options |= self.options
         if self.options.get('align') in _align_options_base:
             options['align'] = ' align-' + self.options['align']
         else:
@@ -108,21 +107,22 @@ class Vimeo(Directive):
     def set_video_size(self):
         """Set video size."""
         # Only need to make a connection if width and height aren't provided
-        if 'height' not in self.options or 'width' not in self.options:
-            self.options['height'] = VIDEO_DEFAULT_HEIGHT
-            self.options['width'] = VIDEO_DEFAULT_WIDTH
+        if 'height' in self.options and 'width' in self.options:
+            return
+        self.options['height'] = VIDEO_DEFAULT_HEIGHT
+        self.options['width'] = VIDEO_DEFAULT_WIDTH
 
-            if json:  # we can attempt to retrieve video attributes from vimeo
-                try:
-                    url = ('https://vimeo.com/api/v2/video/{0}'
-                           '.json'.format(self.arguments[0]))
-                    data = requests.get(url).text
-                    video_attributes = json.loads(data)[0]
-                    self.options['height'] = video_attributes['height']
-                    self.options['width'] = video_attributes['width']
-                except Exception:
-                    # fall back to the defaults
-                    pass
+        if json:  # we can attempt to retrieve video attributes from vimeo
+            try:
+                url = ('https://vimeo.com/api/v2/video/{0}'
+                       '.json'.format(self.arguments[0]))
+                data = requests.get(url).text
+                video_attributes = json.loads(data)[0]
+                self.options['height'] = video_attributes['height']
+                self.options['width'] = video_attributes['width']
+            except Exception:
+                # fall back to the defaults
+                pass
 
     def check_content(self):
         """Check if content exists."""

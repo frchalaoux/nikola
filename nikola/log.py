@@ -91,11 +91,7 @@ def configure_logging(logging_mode: LoggingMode = LoggingMode.NORMAL) -> None:
 
     This method can be called multiple times, previous configuration will be overridden.
     """
-    if DEBUG:
-        logging.root.level = logging.DEBUG
-    else:
-        logging.root.level = logging.INFO
-
+    logging.root.level = logging.DEBUG if DEBUG else logging.INFO
     if logging_mode == LoggingMode.QUIET:
         logging.root.handlers = []
         return

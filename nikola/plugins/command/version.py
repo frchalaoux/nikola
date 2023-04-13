@@ -56,7 +56,7 @@ class CommandVersion(Command):
 
     def _execute(self, options={}, args=None):
         """Print the version number."""
-        print("Nikola v" + __version__)
+        print(f"Nikola v{__version__}")
         if options.get('check'):
             data = requests.get(URL).json()
             pypi_version = data['info']['version']

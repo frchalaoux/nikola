@@ -91,14 +91,8 @@ def get_base_path(base):
     # first parse the base_url for some path
     base_parsed = urlparse(base)
 
-    if not base_parsed.path:
-        sub_path = ''
-    else:
-        sub_path = base_parsed.path
-    if sub_path.endswith('/'):
-        return sub_path
-    else:
-        return sub_path + '/'
+    sub_path = base_parsed.path if base_parsed.path else ''
+    return sub_path if sub_path.endswith('/') else f'{sub_path}/'
 
 
 class Sitemap(LateTask):
@@ -186,14 +180,23 @@ class Sitemap(LateTask):
                                                  b'<meta name=robots content=noindex',
                                                  b'<meta name=robots content=none']
                             lowquothead = filehead.lower().decode('utf-8', 'ignore').replace('"', '').encode('utf-8')
-                            if any([robot_directive in lowquothead for robot_directive in robots_directives]):
+                            if any(
+                                robot_directive in lowquothead
+                                for robot_directive in robots_directives
+                            ):
                                 continue
 
                         # put Atom and RSS in sitemapindex[] instead of in urlset[],
                         # sitemap_path is included after it is generated
                         if path.endswith('.xml') or path.endswith('.atom') or path.endswith('.rss'):
                             known_elm_roots = (b'<feed', b'<rss', b'<urlset')
-                            if any([elm_root in filehead.lower() for elm_root in known_elm_roots]) and path != sitemap_path:
+                            if (
+                                any(
+                                    elm_root in filehead.lower()
+                                    for elm_root in known_elm_roots
+                                )
+                                and path != sitemap_path
+                            ):
                                 path = path.replace(os.sep, '/')
                                 lastmod = self.get_lastmod(real_path)
                                 loc = urljoin(base_url, base_path + path)
@@ -221,7 +224,7 @@ class Sitemap(LateTask):
             for rule in kw["robots_exclusions"]:
                 robot = robotparser.RobotFileParser()
                 robot.parse(["User-Agent: *", "Disallow: {0}".format(rule)])
-                if not robot.can_fetch("*", '/' + path):
+                if not robot.can_fetch("*", f'/{path}'):
                     return False  # not robot food
             return True
 
@@ -234,7 +237,7 @@ class Sitemap(LateTask):
                 for k in sorted(urlset.keys()):
                     outf.write(urlset[k])
                 outf.write(urlset_footer)
-            sitemap_url = urljoin(base_url, base_path + "sitemap.xml")
+            sitemap_url = urljoin(base_url, f"{base_path}sitemap.xml")
             sitemapindex[sitemap_url] = sitemap_format.format(sitemap_url, self.get_lastmod(sitemap_path))
 
         def write_sitemapindex():
@@ -258,19 +261,19 @@ class Sitemap(LateTask):
             output = kw["output_folder"]
             file_dep = []
 
-            for i in urlset.keys():
+            for i in urlset:
                 p = os.path.join(output, urlparse(i).path.replace(base_path, '', 1))
                 if not p.endswith('sitemap.xml') and not os.path.isdir(p):
                     file_dep.append(p)
                 if os.path.isdir(p) and os.path.exists(os.path.join(p, 'index.html')):
-                    file_dep.append(p + 'index.html')
+                    file_dep.append(f'{p}index.html')
 
-            for i in sitemapindex.keys():
+            for i in sitemapindex:
                 p = os.path.join(output, urlparse(i).path.replace(base_path, '', 1))
                 if not p.endswith('sitemap.xml') and not os.path.isdir(p):
                     file_dep.append(p)
                 if os.path.isdir(p) and os.path.exists(os.path.join(p, 'index.html')):
-                    file_dep.append(p + 'index.html')
+                    file_dep.append(f'{p}index.html')
 
             return {'file_dep': file_dep}
 
@@ -306,11 +309,12 @@ class Sitemap(LateTask):
         if self.site.invariant:
             return '2038-01-01'
         else:
-            # RFC 3339 (web ISO 8601 profile) represented in UTC with Zulu
-            # zone desgignator as recommeded for sitemaps. Second and
-            # microsecond precision is stripped for compatibility.
-            lastmod = datetime.datetime.utcfromtimestamp(os.stat(p).st_mtime).replace(tzinfo=dateutil.tz.gettz('UTC'), second=0, microsecond=0).isoformat().replace('+00:00', 'Z')
-            return lastmod
+            return (
+                datetime.datetime.utcfromtimestamp(os.stat(p).st_mtime)
+                .replace(tzinfo=dateutil.tz.gettz('UTC'), second=0, microsecond=0)
+                .isoformat()
+                .replace('+00:00', 'Z')
+            )
 
 
 if __name__ == '__main__':

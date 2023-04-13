@@ -108,7 +108,7 @@ class CommandStatus(Command):
                     if fmodtime.replace(tzinfo=tzlocal()) > last_deploy.replace(tzinfo=gettz("UTC")).astimezone(tz=tzlocal()):
                         fmod_since_deployment.append(fpath)
 
-            if len(fmod_since_deployment) > 0:
+            if fmod_since_deployment:
                 print("{0} output files modified since last deployment {1} ago.".format(str(len(fmod_since_deployment)), self.human_time(last_deploy_offset)))
                 if options['list_modified']:
                     for fpath in fmod_since_deployment:
@@ -134,8 +134,9 @@ class CommandStatus(Command):
 
         # find all scheduled posts with offset from now until publishing time
         posts_scheduled = [
-            (post.date - now, post) for post in self.site.all_posts
-            if post.publish_later and not (post.is_draft or post.is_private)
+            (post.date - now, post)
+            for post in self.site.all_posts
+            if post.publish_later and not post.is_draft and not post.is_private
         ]
         posts_scheduled = sorted(posts_scheduled, key=lambda offset_post: (offset_post[0], offset_post[1].source_path))
 

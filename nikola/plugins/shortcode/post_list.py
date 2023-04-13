@@ -135,14 +135,10 @@ class PostListShortcode(ShortcodePlugin):
         if site.invariant:  # for testing purposes
             post_list_id = id or 'post_list_' + 'fixedvaluethatisnotauuid'
         else:
-            post_list_id = id or 'post_list_' + uuid.uuid4().hex
+            post_list_id = id or f'post_list_{uuid.uuid4().hex}'
 
         # Get post from filename if available
-        if filename:
-            self_post = site.post_per_input_file.get(filename)
-        else:
-            self_post = None
-
+        self_post = site.post_per_input_file.get(filename) if filename else None
         if self_post:
             self_post.register_depfile("####MAGIC####TIMELINE", lang=lang)
             self_post.register_depfile("####MAGIC####CONFIG:GLOBAL_CONTEXT", lang=lang)
@@ -165,10 +161,10 @@ class PostListShortcode(ShortcodePlugin):
         if type is not False:
             post_type = type
 
-        if post_type == 'page' or post_type == 'pages':
+        if post_type in ['page', 'pages']:
             timeline = [p for p in site.timeline if not p.use_in_feeds]
         elif post_type == 'all':
-            timeline = [p for p in site.timeline]
+            timeline = list(site.timeline)
         else:  # post
             timeline = [p for p in site.timeline if p.use_in_feeds]
 
@@ -183,10 +179,7 @@ class PostListShortcode(ShortcodePlugin):
 
         if tags:
             tags = {t.strip().lower() for t in tags.split(',')}
-            if require_all_tags:
-                compare = set.issubset
-            else:
-                compare = operator.and_
+            compare = set.issubset if require_all_tags else operator.and_
             for post in timeline:
                 post_tags = {t.lower() for t in post.tags}
                 if compare(tags, post_tags):
@@ -212,10 +205,11 @@ class PostListShortcode(ShortcodePlugin):
                     continue
 
             bp = post.translated_base_path(lang)
-            if os.path.exists(bp) and state:
-                state.document.settings.record_dependencies.add(bp)
-            elif os.path.exists(bp) and self_post:
-                self_post.register_depfile(bp, lang=lang)
+            if os.path.exists(bp):
+                if state:
+                    state.document.settings.record_dependencies.add(bp)
+                elif self_post:
+                    self_post.register_depfile(bp, lang=lang)
 
             posts += [post]
 

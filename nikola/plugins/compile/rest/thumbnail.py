@@ -49,16 +49,16 @@ class Plugin(RestExtension):
 class Thumbnail(Figure):
     """Thumbnail directive for reST."""
 
-    def align(argument):
+    def align(self):
         """Return thumbnail alignment."""
-        return directives.choice(argument, Image.align_values)
+        return directives.choice(self, Image.align_values)
 
-    def figwidth_value(argument):
+    def figwidth_value(self):
         """Return figure width."""
-        if argument.lower() == 'image':
+        if self.lower() == 'image':
             return 'image'
         else:
-            return directives.length_or_percentage_or_unitless(argument, 'px')
+            return directives.length_or_percentage_or_unitless(self, 'px')
 
     option_spec = Image.option_spec.copy()
     option_spec['figwidth'] = figwidth_value
@@ -74,8 +74,5 @@ class Thumbnail(Figure):
         else:
             self.arguments[0] = '.thumbnail'.join(os.path.splitext(uri))
         self.options['target'] = uri
-        if self.content:
-            (node,) = Figure.run(self)
-        else:
-            (node,) = Image.run(self)
+        (node,) = Figure.run(self) if self.content else Image.run(self)
         return [node]

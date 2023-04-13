@@ -128,4 +128,4 @@ class FakePost:
         return self._meta[key]
 
     def permalink(self):
-        return "/posts/" + self._slug
+        return f"/posts/{self._slug}"

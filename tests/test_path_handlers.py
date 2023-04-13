@@ -30,15 +30,15 @@ def fixture(taxonomy, path):
     append_index = scheme == 'base'
     if isinstance(taxonomy, ClassifyAuthors) and append_index:
         site = Nikola(TRANSLATIONS={"en": ""}, AUTHOR_PATH=path)
-    elif isinstance(taxonomy, ClassifyAuthors) and not append_index:
+    elif isinstance(taxonomy, ClassifyAuthors):
         pytest.skip("There is no AUTHORS_INDEX_PATH setting")
     elif isinstance(taxonomy, ClassifyCategories) and append_index:
         site = Nikola(TRANSLATIONS={"en": ""}, CATEGORY_PATH=path)
-    elif isinstance(taxonomy, ClassifyCategories) and not append_index:
+    elif isinstance(taxonomy, ClassifyCategories):
         site = Nikola(TRANSLATIONS={"en": ""}, CATEGORIES_INDEX_PATH=path)
     elif isinstance(taxonomy, ClassifyTags) and append_index:
         site = Nikola(TRANSLATIONS={"en": ""}, TAG_PATH=path)
-    elif isinstance(taxonomy, ClassifyTags) and not append_index:
+    elif isinstance(taxonomy, ClassifyTags):
         site = Nikola(TRANSLATIONS={"en": ""}, TAGS_INDEX_PATH=path)
     else:
         raise TypeError("Unknown taxonomy %r" % type(taxonomy))
@@ -59,7 +59,7 @@ def fixture(taxonomy, path):
     if append_index:
         expected += "/"
     if not expected.startswith("/"):
-        expected = "/" + expected
+        expected = f"/{expected}"
 
     return site, classifier, taxonomy, append_index, expected
 
@@ -84,7 +84,9 @@ def test_taxonomy_index_path_helper(fixture):
     site, _, taxonomy, _, expected = fixture
 
     # Act
-    path = site.path(taxonomy.classification_name + "_index", "name", "en", is_link=True)
+    path = site.path(
+        f"{taxonomy.classification_name}_index", "name", "en", is_link=True
+    )
 
     # Assert
     assert path == expected

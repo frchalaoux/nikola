@@ -98,14 +98,13 @@ class PageIndex(Taxonomy):
             "classification": dirname,
             "has_no_feeds": True,
         }
-        kw.update(context)
+        kw |= context
         return context, kw
 
     def should_generate_classification_page(self, dirname, post_list, lang):
         """Only generates list of posts for classification if this function returns True."""
-        short_destination = dirname + '/' + self.site.config['INDEX_FILE']
-        for post in post_list:
-            # If there is an index.html pending to be created from a page, do not generate the page index.
-            if post.destination_path(lang, sep='/') == short_destination:
-                return False
-        return True
+        short_destination = f'{dirname}/' + self.site.config['INDEX_FILE']
+        return all(
+            post.destination_path(lang, sep='/') != short_destination
+            for post in post_list
+        )

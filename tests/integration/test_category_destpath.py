@@ -23,7 +23,7 @@ def test_destpath_with_avoidance(build, output_dir):
 
     def _make_output_path(dir, name):
         """Make a file path to the output."""
-        return os.path.join(dir, name + ".html")
+        return os.path.join(dir, f"{name}.html")
 
     cat1 = os.path.join(output_dir, "posts", "cat1")
     cat2 = os.path.join(output_dir, "posts", "cat2")

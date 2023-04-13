@@ -110,10 +110,7 @@ class Archive(Taxonomy):
         elif len(classification) == 1:
             return classification[0]
         elif len(classification) == 2:
-            if only_last_component:
-                date_str = "{month}"
-            else:
-                date_str = "{month_year}"
+            date_str = "{month}" if only_last_component else "{month_year}"
             return nikola.utils.LocaleBorg().format_date_in_string(
                 date_str,
                 datetime.date(int(classification[0]), int(classification[1]), 1),
@@ -152,9 +149,11 @@ class Archive(Taxonomy):
             "messages": self.site.MESSAGES,
         }
         page_kind = "list"
-        if self.show_list_as_index:
-            if not self.show_list_as_subcategories_list or len(hierarchy) == self.max_levels:
-                page_kind = "index"
+        if self.show_list_as_index and (
+            not self.show_list_as_subcategories_list
+            or len(hierarchy) == self.max_levels
+        ):
+            page_kind = "index"
         if len(hierarchy) == 0:
             title = kw["messages"][lang]["Archive"]
         elif len(hierarchy) == 1:
@@ -170,7 +169,7 @@ class Archive(Taxonomy):
                 datetime.date(int(hierarchy[0]), int(hierarchy[1]), int(hierarchy[2])),
                 lang)
         else:
-            raise Exception("Cannot interpret classification {}!".format(repr(classification)))
+            raise Exception(f"Cannot interpret classification {repr(classification)}!")
 
         context = {
             "title": title,
@@ -206,7 +205,7 @@ class Archive(Taxonomy):
             context["has_archive_navigation"] = bool(context["previous_archive"] or context["up_archive"] or context["next_archive"])
         else:
             context["has_archive_navigation"] = False
-        kw.update(context)
+        kw |= context
         return context, kw
 
     def postprocess_posts_per_classification(self, posts_per_classification_per_language, flat_hierarchy_per_lang=None, hierarchy_lookup_per_lang=None):
@@ -219,9 +218,14 @@ class Archive(Taxonomy):
             for lang, flat_hierarchy in flat_hierarchy_per_lang.items():
                 self.archive_navigation[lang] = defaultdict(list)
                 for node in flat_hierarchy:
-                    if not self.site.config["SHOW_UNTRANSLATED_POSTS"]:
-                        if not [x for x in posts_per_classification_per_language[lang][node.classification_name] if x.is_translation_available(lang)]:
-                            continue
+                    if not self.site.config["SHOW_UNTRANSLATED_POSTS"] and not [
+                        x
+                        for x in posts_per_classification_per_language[lang][
+                            node.classification_name
+                        ]
+                        if x.is_translation_available(lang)
+                    ]:
+                        continue
                     self.archive_navigation[lang][len(node.classification_path)].append(node.classification_name)
 
                 # We need to sort it. Natsort means it’s year 10000 compatible!

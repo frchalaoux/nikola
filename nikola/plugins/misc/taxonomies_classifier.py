@@ -77,9 +77,11 @@ class TaxonomiesClassifier(SignalHandler):
                                 if not taxonomy.include_posts_from_subhierarchies or not taxonomy.has_hierarchy:
                                     break
                                 classification_path = taxonomy.extract_hierarchy(classification)
-                                if len(classification_path) <= 1:
-                                    if len(classification_path) == 0 or not taxonomy.include_posts_into_hierarchy_root:
-                                        break
+                                if len(classification_path) <= 1 and (
+                                    len(classification_path) == 0
+                                    or not taxonomy.include_posts_into_hierarchy_root
+                                ):
+                                    break
                                 classification = taxonomy.recombine_classification_from_hierarchy(classification_path[:-1])
 
         # Sort everything.
@@ -153,7 +155,7 @@ class TaxonomiesClassifier(SignalHandler):
                 taxonomy.postprocess_posts_per_classification(site.posts_per_classification[taxonomy.classification_name])
 
         # Check for valid paths and for collisions
-        taxonomy_outputs = {lang: dict() for lang in site.config['TRANSLATIONS'].keys()}
+        taxonomy_outputs = {lang: {} for lang in site.config['TRANSLATIONS'].keys()}
         quit = False
         for taxonomy in taxonomies:
             # Check for collisions (per language)
@@ -239,17 +241,21 @@ class TaxonomiesClassifier(SignalHandler):
         # Determine how to extend path
         path = [_f for _f in path if _f]
         if force_extension is not None:
-            if len(path) == 0 and dest_type == 'rss':
+            if not path and dest_type == 'rss':
                 path = [self.site.config['RSS_FILENAME_BASE'](lang)]
-            elif len(path) == 0 and dest_type == 'feed':
+            elif not path and dest_type == 'feed':
                 path = [self.site.config['ATOM_FILENAME_BASE'](lang)]
-            elif len(path) == 0 or append_index == 'always':
-                path = path + [os.path.splitext(self.site.config['INDEX_FILE'])[0]]
+            elif not path or append_index == 'always':
+                path += [os.path.splitext(self.site.config['INDEX_FILE'])[0]]
             elif len(path) > 0 and append_index == 'never':
                 path[-1] = os.path.splitext(path[-1])[0]
             path[-1] += force_extension
-        elif (self.site.config['PRETTY_URLS'] and append_index != 'never') or len(path) == 0 or append_index == 'always':
-            path = path + [self.site.config['INDEX_FILE']]
+        elif (
+            (self.site.config['PRETTY_URLS'] and append_index != 'never')
+            or not path
+            or append_index == 'always'
+        ):
+            path += [self.site.config['INDEX_FILE']]
         elif append_index != 'never':
             path[-1] += '.html'
         # Create path
@@ -287,11 +293,7 @@ class TaxonomiesClassifier(SignalHandler):
             result = taxonomy.get_path(name, lang, dest_type=dest_type)
         path, append_index, page_ = self._parse_path_result(result)
 
-        if page is not None:
-            page = int(page)
-        else:
-            page = page_
-
+        page = int(page) if page is not None else page_
         page_info = None
         if taxonomy.show_list_as_index and page is not None:
             number_of_pages = self.site.page_count_per_classification[taxonomy.classification_name][lang].get(name)

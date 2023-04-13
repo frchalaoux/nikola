@@ -150,8 +150,7 @@ class NikolaMetadata(MetadataExtractor):
         """Extract metadata from text."""
         outdict = {}
         for line in source_text.split('\n'):
-            match = self.nikola_re.match(line)
-            if match:
+            if match := self.nikola_re.match(line):
                 k, v = match.group(1), match.group(2)
                 if v:
                     outdict[k] = v
@@ -169,8 +168,12 @@ class NikolaMetadata(MetadataExtractor):
             except KeyError:
                 pass
         # Leftover metadata (user-specified/non-default).
-        for k in natsort.natsorted(list(metadata.keys()), alg=natsort.ns.F | natsort.ns.IC):
-            meta.append(f.format(k, metadata[k]))
+        meta.extend(
+            f.format(k, metadata[k])
+            for k in natsort.natsorted(
+                list(metadata.keys()), alg=natsort.ns.F | natsort.ns.IC
+            )
+        )
         data = '\n'.join(meta)
         if comment_wrap is True:
             comment_wrap = ('<!--', '-->')

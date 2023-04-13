@@ -75,7 +75,7 @@ class CompileHtml(PageCompiler):
         # is_page is not used by create_post as of now.
         kw.pop('is_page', False)
         metadata = {}
-        metadata.update(self.default_metadata)
+        metadata |= self.default_metadata
         metadata.update(kw)
         makedirs(os.path.dirname(path))
         if not content.endswith('\n'):
@@ -113,8 +113,7 @@ class CompileHtml(PageCompiler):
                 continue
             elif k == 'keywords':
                 k = 'tags'
-            content = tag.get('content')
-            if content:
+            if content := tag.get('content'):
                 metadata[k] = content
         map_metadata(metadata, 'html_metadata', self.site.config)
         return metadata

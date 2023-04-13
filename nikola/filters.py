@@ -160,33 +160,36 @@ def yui_compressor(infile, executable=None):
             yuicompressor = 'yuicompressor'
         except Exception:
             raise Exception("yui-compressor is not installed.")
-            return False
-
-    return runinplace('{} --nomunge %1 -o %2'.format(yuicompressor), infile)
+    return runinplace(f'{yuicompressor} --nomunge %1 -o %2', infile)
 
 
 @_ConfigurableFilter(executable='CLOSURE_COMPILER_EXECUTABLE')
 def closure_compiler(infile, executable='closure-compiler'):
     """Run closure-compiler on a file."""
-    return runinplace('{} --warning_level QUIET --js %1 --js_output_file %2'.format(executable), infile)
+    return runinplace(
+        f'{executable} --warning_level QUIET --js %1 --js_output_file %2',
+        infile,
+    )
 
 
 @_ConfigurableFilter(executable='OPTIPNG_EXECUTABLE')
 def optipng(infile, executable='optipng'):
     """Run optipng on a file."""
-    return runinplace("{} -preserve -o2 -quiet %1".format(executable), infile)
+    return runinplace(f"{executable} -preserve -o2 -quiet %1", infile)
 
 
 @_ConfigurableFilter(executable='JPEGOPTIM_EXECUTABLE')
 def jpegoptim(infile, executable='jpegoptim'):
     """Run jpegoptim on a file."""
-    return runinplace("{} -p --strip-all -q %1".format(executable), infile)
+    return runinplace(f"{executable} -p --strip-all -q %1", infile)
 
 
 @_ConfigurableFilter(executable='JPEGOPTIM_EXECUTABLE')
 def jpegoptim_progressive(infile, executable='jpegoptim'):
     """Run jpegoptim on a file and convert to progressive."""
-    return runinplace("{} -p --strip-all --all-progressive -q %1".format(executable), infile)
+    return runinplace(
+        f"{executable} -p --strip-all --all-progressive -q %1", infile
+    )
 
 
 @_ConfigurableFilter(executable='HTML_TIDY_EXECUTABLE')
@@ -223,7 +226,7 @@ def _html_tidy_runner(infile, options, executable='tidy5'):
     """Run HTML Tidy."""
     # Warnings (returncode 1) are not critical, and *everything* is a warning.
     try:
-        status = runinplace(executable + " " + options, infile)
+        status = runinplace(f"{executable} {options}", infile)
     except subprocess.CalledProcessError as err:
         status = 0 if err.returncode == 1 else err.returncode
     return status
@@ -304,8 +307,7 @@ def _smarty_oldschool(text):
     except ImportError:
         raise typo.TypogrifyError("Error in {% smartypants %} filter: The Python smartypants library isn't installed.")
     else:
-        output = smartypants.convert_dashes_oldschool(text)
-        return output
+        return smartypants.convert_dashes_oldschool(text)
 
 
 @apply_to_text_file
@@ -344,17 +346,20 @@ def typogrify_custom(data, typogrify_filters=None, ignore_tags=None):
 @apply_to_text_file
 def php_template_injection(data):
     """Insert PHP code into Nikola templates."""
-    template = re.search(r'<\!-- __NIKOLA_PHP_TEMPLATE_INJECTION source\:(.*) checksum\:(.*)__ -->', data)
-    if template:
-        source = template.group(1)
-        with io.open(source, "r", encoding="utf-8-sig") as in_file:
-            phpdata = in_file.read()
-        _META_SEPARATOR = '(' + os.linesep * 2 + '|' + ('\n' * 2) + '|' + ("\r\n" * 2) + ')'
-        phpdata = re.split(_META_SEPARATOR, phpdata, maxsplit=1)[-1]
-        phpdata = data.replace(template.group(0), phpdata)
-        return phpdata
-    else:
+    if not (
+        template := re.search(
+            r'<\!-- __NIKOLA_PHP_TEMPLATE_INJECTION source\:(.*) checksum\:(.*)__ -->',
+            data,
+        )
+    ):
         return data
+    source = template[1]
+    with io.open(source, "r", encoding="utf-8-sig") as in_file:
+        phpdata = in_file.read()
+    _META_SEPARATOR = '(' + os.linesep * 2 + '|' + ('\n' * 2) + '|' + ("\r\n" * 2) + ')'
+    phpdata = re.split(_META_SEPARATOR, phpdata, maxsplit=1)[-1]
+    phpdata = data.replace(template[0], phpdata)
+    return phpdata
 
 
 @apply_to_text_file
@@ -480,36 +485,36 @@ def deduplicate_ids(data, top_classes=None):
         else:
             seen_ids.add(i)
 
-    if duplicated_ids:
+    if not duplicated_ids:
+        return data
         # Well, that sucks.
-        for i in duplicated_ids:
+    for i in duplicated_ids:
             # Results are ordered the same way they are ordered in document
-            offending_elements = doc.xpath('//*[@id="{}"]'.format(i))
-            counter = 2
+        offending_elements = doc.xpath(f'//*[@id="{i}"]')
+        counter = 2
             # If this is a story or a post, do it from top to bottom, because
             # updates to those are more likely to appear at the bottom of pages.
             # For anything else, including indexes, do it from bottom to top,
             # because new posts appear at the top of pages.
             # We also leave the first result out, so there is one element with
             # "plain" ID
-            if any(doc.find_class(c) for c in top_classes):
-                off = offending_elements[1:]
-            else:
-                off = offending_elements[-2::-1]
-            for e in off:
-                new_id = i
-                while new_id in seen_ids:
-                    new_id = '{0}-{1}'.format(i, counter)
-                    counter += 1
-                e.attrib['id'] = new_id
-                seen_ids.add(new_id)
-                # Find headerlinks that we can fix.
-                headerlinks = e.find_class('headerlink')
-                for hl in headerlinks:
+        off = (
+            offending_elements[1:]
+            if any(doc.find_class(c) for c in top_classes)
+            else offending_elements[-2::-1]
+        )
+        for e in off:
+            new_id = i
+            while new_id in seen_ids:
+                new_id = '{0}-{1}'.format(i, counter)
+                counter += 1
+            e.attrib['id'] = new_id
+            seen_ids.add(new_id)
+            # Find headerlinks that we can fix.
+            headerlinks = e.find_class('headerlink')
+            for hl in headerlinks:
                     # We might get headerlinks of child elements
-                    if hl.attrib['href'] == '#' + i:
-                        hl.attrib['href'] = '#' + new_id
-                        break
-        return '<!DOCTYPE html>\n' + lxml.html.tostring(doc, encoding='unicode')
-    else:
-        return data
+                if hl.attrib['href'] == f'#{i}':
+                    hl.attrib['href'] = f'#{new_id}'
+                    break
+    return '<!DOCTYPE html>\n' + lxml.html.tostring(doc, encoding='unicode')

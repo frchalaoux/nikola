@@ -169,10 +169,7 @@ class CommandPlugin(Command):
         plugins = []
         for plugin in self.site.plugin_manager.getAllPlugins():
             p = plugin.path
-            if os.path.isdir(p):
-                p = p + os.sep
-            else:
-                p = p + '.py'
+            p = p + os.sep if os.path.isdir(p) else f'{p}.py'
             plugins.append([plugin.name, p])
 
         plugins.sort()
@@ -185,9 +182,8 @@ class CommandPlugin(Command):
             formatstring = '{0:<{2}}  at {1}'
         for name, path in plugins:
             print(formatstring.format(name, path, maxlength))
-        dp = self.site.config['DISABLED_PLUGINS']
-        if dp:
-            print('\n\nAlso, you have disabled these plugins: {}'.format(', '.join(dp)))
+        if dp := self.site.config['DISABLED_PLUGINS']:
+            print(f"\n\nAlso, you have disabled these plugins: {', '.join(dp)}")
         else:
             print('\n\nNo plugins are disabled.')
         return 0
@@ -199,10 +195,7 @@ class CommandPlugin(Command):
         plugins = []
         for plugin in self.site.plugin_manager.getAllPlugins():
             p = plugin.path
-            if os.path.isdir(p):
-                p = p + os.sep
-            else:
-                p = p + '.py'
+            p = p + os.sep if os.path.isdir(p) else f'{p}.py'
             if plugin.name in data:
                 plugins.append([plugin.name, p])
         print('Will upgrade {0} plugins: {1}'.format(len(plugins), ', '.join(n for n, _ in plugins)))
@@ -243,7 +236,7 @@ class CommandPlugin(Command):
             utils.extract_all(zip_file, self.output_dir)
             dest_path = os.path.join(self.output_dir, name)
         else:
-            LOGGER.error("Can't find plugin " + name)
+            LOGGER.error(f"Can't find plugin {name}")
             return 1
 
         reqpath = os.path.join(dest_path, 'requirements.txt')
@@ -323,8 +316,7 @@ class CommandPlugin(Command):
                     p = os.path.dirname(p)
                 LOGGER.warning('About to uninstall plugin: {0}'.format(name))
                 LOGGER.warning('This will delete {0}'.format(p))
-                sure = utils.ask_yesno('Are you sure?')
-                if sure:
+                if sure := utils.ask_yesno('Are you sure?'):
                     LOGGER.warning('Removing {0}'.format(p))
                     shutil.rmtree(p)
                     return 0
@@ -345,7 +337,7 @@ class CommandPlugin(Command):
                     self.json = requests.get(url).json()
             except json.decoder.JSONDecodeError as e:
                 LOGGER.error("Failed to decode JSON data in response from server.")
-                LOGGER.error("JSON error encountered: " + str(e))
+                LOGGER.error(f"JSON error encountered: {str(e)}")
                 LOGGER.error("This issue might be caused by server-side issues, or by to unusual activity in your "
                              "network (as determined by CloudFlare). Please visit https://plugins.getnikola.com/ in "
                              "a browser.")
