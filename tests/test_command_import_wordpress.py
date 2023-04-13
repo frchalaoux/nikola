@@ -169,7 +169,7 @@ Diese Daten sind f\xfcr mich nicht bestimmten Personen zuordenbar. Eine Zusammen
         True,
     )
 
-    assert len(import_command.url_map) > 0
+    assert import_command.url_map
 
     assert (
         "http://some.blog/posts/2007/04/hoert.html" ==

@@ -176,15 +176,19 @@ class CommandAuto(Command):
             self.nikola_cmd = [sys.argv[0], 'build']
 
         if self.site.configuration_filename != 'conf.py':
-            self.nikola_cmd.append('--conf=' + self.site.configuration_filename)
+            self.nikola_cmd.append(f'--conf={self.site.configuration_filename}')
 
         if options and options.get('process'):
-            self.nikola_cmd += ['--process={}'.format(options['process']),
-                                '--parallel-type={}'.format(options['parallel-type'])]
+            self.nikola_cmd += [
+                f"--process={options['process']}",
+                f"--parallel-type={options['parallel-type']}",
+            ]
 
         if options:
-            self.nikola_cmd += ['--db-file={}'.format(options['db-file']),
-                                '--backend={}'.format(options['backend'])]
+            self.nikola_cmd += [
+                f"--db-file={options['db-file']}",
+                f"--backend={options['backend']}",
+            ]
 
         port = options and options.get('port')
         self.snippet = '''<script>document.write('<script src="http://'
@@ -217,16 +221,8 @@ class CommandAuto(Command):
         if not os.path.exists(out_folder):
             makedirs(out_folder)
 
-        if options and options.get('browser'):
-            browser = True
-        else:
-            browser = False
-
-        if options['ipv6']:
-            dhost = '::'
-        else:
-            dhost = '0.0.0.0'
-
+        browser = bool(options and options.get('browser'))
+        dhost = '::' if options['ipv6'] else '0.0.0.0'
         host = options['address'].strip('[').strip(']') or dhost
 
         # Prepare asyncio event loop
@@ -485,12 +481,11 @@ class CommandAuto(Command):
                     await ws.close()
                     to_delete.append(ws)
             except RuntimeError as e:
-                if 'closed' in e.args[0]:
-                    self.logger.warning("WebSocket {0} closed uncleanly".format(ws))
-                    to_delete.append(ws)
-                else:
+                if 'closed' not in e.args[0]:
                     raise
 
+                self.logger.warning("WebSocket {0} closed uncleanly".format(ws))
+                to_delete.append(ws)
         for ws in to_delete:
             self.sockets.remove(ws)
 
@@ -536,12 +531,14 @@ class IndexHtmlStaticResource(StaticResource):
         # on opening a dir, load it's contents if allowed
         if filepath.is_dir():
             if filename.endswith('/') or not filename:
-                ret = await self.handle_file(request, filename + 'index.html', from_index=filename)
+                ret = await self.handle_file(
+                    request, f'{filename}index.html', from_index=filename
+                )
             else:
                 # Redirect and add trailing slash so relative links work (Issue #3140)
-                new_url = request.rel_url.path + '/'
+                new_url = f'{request.rel_url.path}/'
                 if request.rel_url.query_string:
-                    new_url += '?' + request.rel_url.query_string
+                    new_url += f'?{request.rel_url.query_string}'
                 raise HTTPMovedPermanently(new_url)
         elif filepath.is_file():
             ct, encoding = mimetypes.guess_type(str(filepath))
@@ -572,9 +569,9 @@ class IndexHtmlStaticResource(StaticResource):
         """Apply some transforms to HTML content."""
         # Inject livereload.js
         text = text.replace('</head>', self.snippet, 1)
-        # Disable <base> tag
-        text = re.sub(r'<base\s([^>]*)>', r'<!--base \g<1>-->', text, flags=re.IGNORECASE)
-        return text
+        return re.sub(
+            r'<base\s([^>]*)>', r'<!--base \g<1>-->', text, flags=re.IGNORECASE
+        )
 
 
 # Based on code from the 'hachiko' library by John Biesnecker — thanks!

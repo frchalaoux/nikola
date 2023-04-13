@@ -168,8 +168,10 @@ def format_default_translations_config(additional_languages):
     if not additional_languages:
         return SAMPLE_CONF["TRANSLATIONS"]
     lang_paths = ['    DEFAULT_LANG: "",']
-    for lang in sorted(additional_languages):
-        lang_paths.append('    "{0}": "./{0}",'.format(lang))
+    lang_paths.extend(
+        '    "{0}": "./{0}",'.format(lang)
+        for lang in sorted(additional_languages)
+    )
     return "{{\n{0}\n}}".format("\n".join(lang_paths))
 
 
@@ -177,7 +179,7 @@ def get_default_translations_dict(default_lang, additional_languages):
     """Generate a TRANSLATIONS dict matching the config from 'format_default_translations_config'."""
     tr = {default_lang: ''}
     for l in additional_languages:
-        tr[l] = './' + l
+        tr[l] = f'./{l}'
     return tr
 
 
@@ -196,22 +198,22 @@ def format_navigation_links(additional_languages, default_lang, messages, strip_
         """Generate a smaller messages dict with fallback."""
         fmsg = {}
         for i in (u'Archive', u'Tags', u'RSS feed'):
-            if messages[lang][i]:
-                fmsg[i] = messages[lang][i]
-            else:
-                fmsg[i] = i
+            fmsg[i] = messages[lang][i] if messages[lang][i] else i
         return fmsg
 
-    if strip_indexes:
-        index_html = ''
-    else:
-        index_html = 'index.html'
-
+    index_html = '' if strip_indexes else 'index.html'
     # handle the default language
     pairs.append(f.format('DEFAULT_LANG', '', get_msg(default_lang), index_html))
 
     for l in additional_languages:
-        pairs.append(f.format(json.dumps(l, ensure_ascii=False), '/' + l, get_msg(l), index_html))
+        pairs.append(
+            f.format(
+                json.dumps(l, ensure_ascii=False),
+                f'/{l}',
+                get_msg(l),
+                index_html,
+            )
+        )
 
     return u'{{\n{0}\n}}'.format('\n\n'.join(pairs))
 
@@ -462,10 +464,11 @@ class CommandInit(Command):
         print("If you do not want to answer and want to go with the defaults instead, simply restart with the `-q` parameter.")
 
         for query, default, toconf, destination in questions:
-            if target and destination == '!target' and test_destination(target, demo):
-                # Skip the destination question if we know it already
-                pass
-            else:
+            if (
+                not target
+                or destination != '!target'
+                or not test_destination(target, demo)
+            ):
                 if default is toconf is destination is None:
                     print('--- {0} ---'.format(query))
                 elif destination is True:

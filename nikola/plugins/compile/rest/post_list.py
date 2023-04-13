@@ -111,7 +111,4 @@ class PostListDirective(Directive):
             "####MAGIC####TIMELINE")
         for d in deps:
             self.state.document.settings.record_dependencies.add(d)
-        if output:
-            return [nodes.raw('', output, format='html')]
-        else:
-            return []
+        return [nodes.raw('', output, format='html')] if output else []

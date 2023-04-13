@@ -83,7 +83,7 @@ class SoundCloud(Directive):
             'height': 160,
             'preslug': self.preslug,
         }
-        options.update(self.options)
+        options |= self.options
         if self.options.get('align') in _align_options_base:
             options['align'] = ' align-' + self.options['align']
         else:

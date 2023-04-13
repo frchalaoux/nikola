@@ -60,7 +60,7 @@ class CompilePhp(PageCompiler):
         # is_page is not used by create_post as of now.
         kw.pop('is_page', False)
         metadata = {}
-        metadata.update(self.default_metadata)
+        metadata |= self.default_metadata
         metadata.update(kw)
         if not metadata['description']:
             # For PHP, a description must be set.  Otherwise, Nikola will

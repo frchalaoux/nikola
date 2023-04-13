@@ -389,7 +389,7 @@ def test_get_translation_candidate(pattern, path, lang, expected_path):
 def test_TemplateHookRegistry():
     r = TemplateHookRegistry("foo", None)
     r.append("Hello!")
-    r.append(lambda x: "Hello " + x + "!", False, "world")
+    r.append(lambda x: f"Hello {x}!", False, "world")
     assert r() == "Hello!\nHello world!"
 
 

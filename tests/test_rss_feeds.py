@@ -173,7 +173,7 @@ class FakeCompiler:
     def extension(self):
         return ".html"
 
-    def read_metadata(*args, **kwargs):
+    def read_metadata(self, **kwargs):
         return {}
 
     def register_extra_dependencies(self, post):

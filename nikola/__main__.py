@@ -65,10 +65,12 @@ _RETURN_DOITNIKOLA = False
 
 def main(args=None):
     """Run Nikola."""
-    colorful = False
-    if sys.stderr.isatty() and os.name != 'nt' and os.getenv('NIKOLA_MONO') is None and os.getenv('TERM') != 'dumb':
-        colorful = True
-
+    colorful = bool(
+        sys.stderr.isatty()
+        and os.name != 'nt'
+        and os.getenv('NIKOLA_MONO') is None
+        and os.getenv('TERM') != 'dumb'
+    )
     ColorfulFormatter._colorful = colorful
 
     if args is None:
@@ -88,7 +90,7 @@ def main(args=None):
             break
 
     quiet = False
-    if len(args) > 0 and args[0] == 'build' and '--strict' in args:
+    if args and args[0] == 'build' and '--strict' in args:
         LOGGER.info('Running in strict mode')
         configure_logging(LoggingMode.STRICT)
     elif len(args) > 0 and args[0] == 'build' and '-q' in args or '--quiet' in args:
@@ -105,7 +107,7 @@ def main(args=None):
     # Moreover, actually having one somewhere in the tree can be bad, putting
     # the output of that command (the new site) in an unknown directory that is
     # not the current working directory.  (does not apply to `version`)
-    argname = args[0] if len(args) > 0 else None
+    argname = args[0] if args else None
     if argname and argname not in ['init', 'version'] and not argname.startswith('import_'):
         root = get_root_dir()
         if root:
@@ -140,7 +142,7 @@ def main(args=None):
 
     invariant = False
 
-    if len(args) > 0 and args[0] == 'build' and '--invariant' in args:
+    if args and args[0] == 'build' and '--invariant' in args:
         try:
             import freezegun
             freeze = freezegun.freeze_time("2038-01-01")
@@ -149,10 +151,13 @@ def main(args=None):
         except ImportError:
             req_missing(['freezegun'], 'perform invariant builds')
 
-    if config:
-        if os.path.isdir('plugins') and not os.path.exists('plugins/__init__.py'):
-            with open('plugins/__init__.py', 'w') as fh:
-                fh.write('# Plugin modules go here.')
+    if (
+        config
+        and os.path.isdir('plugins')
+        and not os.path.exists('plugins/__init__.py')
+    ):
+        with open('plugins/__init__.py', 'w') as fh:
+            fh.write('# Plugin modules go here.')
 
     config['__colorful__'] = colorful
     config['__invariant__'] = invariant
@@ -199,33 +204,31 @@ class Build(DoitRun):
     def __init__(self, *args, **kw):
         """Initialize Build."""
         opts = list(self.cmd_options)
-        opts.append(
-            {
-                'name': 'strict',
-                'long': 'strict',
-                'default': False,
-                'type': bool,
-                'help': "Fail on things that would normally be warnings.",
-            }
-        )
-        opts.append(
-            {
-                'name': 'invariant',
-                'long': 'invariant',
-                'default': False,
-                'type': bool,
-                'help': "Generate invariant output (for testing only!).",
-            }
-        )
-        opts.append(
-            {
-                'name': 'quiet',
-                'long': 'quiet',
-                'short': 'q',
-                'default': False,
-                'type': bool,
-                'help': "Run quietly.",
-            }
+        opts.extend(
+            (
+                {
+                    'name': 'strict',
+                    'long': 'strict',
+                    'default': False,
+                    'type': bool,
+                    'help': "Fail on things that would normally be warnings.",
+                },
+                {
+                    'name': 'invariant',
+                    'long': 'invariant',
+                    'default': False,
+                    'type': bool,
+                    'help': "Generate invariant output (for testing only!).",
+                },
+                {
+                    'name': 'quiet',
+                    'long': 'quiet',
+                    'short': 'q',
+                    'default': False,
+                    'type': bool,
+                    'help': "Run quietly.",
+                },
+            )
         )
         self.cmd_options = tuple(opts)
         super().__init__(*args, **kw)
@@ -276,7 +279,7 @@ class NikolaTaskLoader(TaskLoader2):
                 'outfile': sys.stderr,
             }
         doit_config['default_tasks'] = ['render_site', 'post_render']
-        doit_config.update(self.nikola._doit_config)
+        doit_config |= self.nikola._doit_config
         return doit_config
 
     def load_tasks(self, cmd, pos_args):
@@ -328,7 +331,7 @@ class DoitNikola(DoitMain):
         args = self.process_args(cmd_args)
         args = [sys_decode(arg) for arg in args]
 
-        if len(args) == 0:
+        if not args:
             cmd_args = ['help']
             args = ['help']
 
@@ -336,16 +339,8 @@ class DoitNikola(DoitMain):
             new_cmd_args = ['help'] + cmd_args
             new_args = ['help'] + args
 
-            cmd_args = []
-            args = []
-
-            for arg in new_cmd_args:
-                if arg not in ('--help', '-h'):
-                    cmd_args.append(arg)
-            for arg in new_args:
-                if arg not in ('--help', '-h'):
-                    args.append(arg)
-
+            cmd_args = [arg for arg in new_cmd_args if arg not in ('--help', '-h')]
+            args = [arg for arg in new_args if arg not in ('--help', '-h')]
         if args[0] == 'help':
             self.nikola.init_plugins(commands_only=True)
         elif args[0] == 'plugin':
@@ -368,16 +363,21 @@ class DoitNikola(DoitMain):
             if sugg.keys():
                 best_sugg = sugg[min(sugg.keys())]
                 if len(best_sugg) == 1:
-                    LOGGER.info('Did you mean "{}"?'.format(best_sugg[0]))
+                    LOGGER.info(f'Did you mean "{best_sugg[0]}"?')
                 else:
-                    LOGGER.info('Did you mean "{}" or "{}"?'.format('", "'.join(best_sugg[:-1]), best_sugg[-1]))
+                    LOGGER.info(
+                        f"""Did you mean "{'", "'.join(best_sugg[:-1])}" or "{best_sugg[-1]}"?"""
+                    )
             return 3
 
-        if not sub_cmds[args[0]] in (Help, TabCompletion) and not isinstance(sub_cmds[args[0]], Command):
-            if not self.nikola.configured:
-                LOGGER.error("This command needs to run inside an "
-                             "existing Nikola site.")
-                return 3
+        if (
+            sub_cmds[args[0]] not in (Help, TabCompletion)
+            and not isinstance(sub_cmds[args[0]], Command)
+            and not self.nikola.configured
+        ):
+            LOGGER.error("This command needs to run inside an "
+                         "existing Nikola site.")
+            return 3
         try:
             return super().run(cmd_args)
         except Exception:
@@ -390,7 +390,7 @@ class DoitNikola(DoitMain):
     @staticmethod
     def print_version():
         """Print Nikola version."""
-        print("Nikola v" + __version__)
+        print(f"Nikola v{__version__}")
 
 
 # Override Command.help() to make it more readable and to remove
@@ -400,7 +400,7 @@ def _command_help(self: Command):
     """Return help text for a command."""
     text = []
 
-    usage = "{} {} {}".format(self.bin_name, self.name, self.doc_usage)
+    usage = f"{self.bin_name} {self.name} {self.doc_usage}"
     text.extend(textwrap.wrap(usage, subsequent_indent='  '))
     text.extend(_wrap(self.doc_purpose, 4))
 
@@ -410,7 +410,7 @@ def _command_help(self: Command):
         options[opt.section].append(opt)
     for section, opts in sorted(options.items()):
         if section:
-            section_name = '\n{}'.format(section)
+            section_name = f'\n{section}'
             text.extend(_wrap(section_name, 2))
         for opt in opts:
             # ignore option that cant be modified on cmd line
@@ -421,15 +421,15 @@ def _command_help(self: Command):
             if '%(default)s' in opt_help:
                 opt_help = opt.help % {'default': opt.default}
             elif opt.default != '' and opt.default is not False and opt.default is not None:
-                opt_help += ' [default: {}]'.format(opt.default)
+                opt_help += f' [default: {opt.default}]'
             opt_choices = opt.help_choices()
-            desc = '{} {}'.format(opt_help, opt_choices)
+            desc = f'{opt_help} {opt_choices}'
             text.extend(_wrap(desc, 8))
 
             # print bool inverse option
             if opt.inverse:
-                text.extend(_wrap('--{}'.format(opt.inverse), 4))
-                text.extend(_wrap('opposite of --{}'.format(opt.long), 8))
+                text.extend(_wrap(f'--{opt.inverse}', 4))
+                text.extend(_wrap(f'opposite of --{opt.long}', 8))
 
     if self.doc_description is not None:
         text.append("\n\nDescription:")

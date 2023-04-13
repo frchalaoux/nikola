@@ -128,9 +128,7 @@ def clone_treenode(treenode, parent=None, acceptor=lambda x: True):
         node_clone.classification_name = treenode.classification_name
 
     # Accept this node if there are no children (left) and acceptor fails
-    if not node_clone.children and not acceptor(treenode):
-        return None
-    return node_clone
+    return node_clone if node_clone.children or acceptor(treenode) else None
 
 
 def flatten_tree_structure(root_list):

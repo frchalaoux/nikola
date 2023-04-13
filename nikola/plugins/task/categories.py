@@ -139,30 +139,29 @@ link://category_rss/dogs => /categories/dogs.xml""",
         cat_string = '/'.join(classification)
         classification_raw = classification  # needed to undo CATEGORY_DESTPATH_NAMES
         destpath_names_reverse = self.destpath_names_reverse(lang)
-        if self.site.config['CATEGORY_PAGES_FOLLOW_DESTPATH']:
-            base_dir = None
-            for post in self.site.posts_per_category[cat_string]:
-                if post.category_from_destpath:
-                    base_dir = post.folder_base(lang)
-                    # Handle CATEGORY_DESTPATH_NAMES
-                    if cat_string in destpath_names_reverse:
-                        cat_string = destpath_names_reverse[cat_string]
-                        classification_raw = cat_string.split('/')
-                    break
-
-            if not self.site.config['CATEGORY_DESTPATH_TRIM_PREFIX']:
-                # If prefixes are not trimmed, we'll already have the base_dir in classification_raw
-                base_dir = ''
-
-            if base_dir is None:
-                # fallback: first POSTS entry + classification
-                base_dir = self.site.config['POSTS'][0][1]
-            base_dir_list = base_dir.split(os.sep)
-            sub_dir = [self.slugify_tag_name(part, lang) for part in classification_raw]
-            return [_f for _f in (base_dir_list + sub_dir) if _f], 'auto'
-        else:
+        if not self.site.config['CATEGORY_PAGES_FOLLOW_DESTPATH']:
             return [_f for _f in [self.site.config['CATEGORY_PATH'](lang)] if _f] + self.slugify_category_name(
                 classification, lang), 'auto'
+        base_dir = None
+        for post in self.site.posts_per_category[cat_string]:
+            if post.category_from_destpath:
+                base_dir = post.folder_base(lang)
+                # Handle CATEGORY_DESTPATH_NAMES
+                if cat_string in destpath_names_reverse:
+                    cat_string = destpath_names_reverse[cat_string]
+                    classification_raw = cat_string.split('/')
+                break
+
+        if not self.site.config['CATEGORY_DESTPATH_TRIM_PREFIX']:
+            # If prefixes are not trimmed, we'll already have the base_dir in classification_raw
+            base_dir = ''
+
+        if base_dir is None:
+            # fallback: first POSTS entry + classification
+            base_dir = self.site.config['POSTS'][0][1]
+        base_dir_list = base_dir.split(os.sep)
+        sub_dir = [self.slugify_tag_name(part, lang) for part in classification_raw]
+        return [_f for _f in (base_dir_list + sub_dir) if _f], 'auto'
 
     def extract_hierarchy(self, classification):
         """Given a classification, return a list of parts in the hierarchy."""
@@ -189,7 +188,7 @@ link://category_rss/dogs => /categories/dogs.xml""",
             "category_descriptions": self.site.config['CATEGORY_DESCRIPTIONS'](lang),
             "category_titles": self.site.config['CATEGORY_TITLES'](lang),
         }
-        kw.update(context)
+        kw |= context
         return context, kw
 
     def provide_context_and_uptodate(self, classification, lang, node=None):
@@ -219,7 +218,7 @@ link://category_rss/dogs => /categories/dogs.xml""",
             "category_path": cat_path,
             "subcategories": subcats,
         }
-        kw.update(context)
+        kw |= context
         return context, kw
 
     def get_other_language_variants(self, classification, lang, classifications_per_language):

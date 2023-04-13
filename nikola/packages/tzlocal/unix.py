@@ -26,21 +26,18 @@ def _get_localzone(_root="/"):
     beneath the _root directory. This is primarily used by the tests.
     In normal usage you call the function without parameters.
     """
-    tzenv = _try_tz_from_env()
-    if tzenv:
+    if tzenv := _try_tz_from_env():
         return tzenv
 
     # Are we under Termux on Android?
     if os.path.exists("/system/bin/getprop"):
         import subprocess
 
-        androidtz = (
+        return (
             subprocess.check_output(["getprop", "persist.sys.timezone"])
             .strip()
             .decode()
         )
-        return androidtz
-
     # Now look for distribution specific configuration files
     # that contain the timezone name.
     for configfile in ("etc/timezone", "var/db/zoneinfo"):
@@ -66,9 +63,7 @@ def _get_localzone(_root="/"):
                         etctz, dummy = etctz.split("#", 1)
                     if not etctz:
                         continue
-                    tz = etctz.replace(" ", "_")
-                    return tz
-
+                    return etctz.replace(" ", "_")
         except IOError:
             # File doesn't exist or is a directory
             continue
@@ -99,10 +94,7 @@ def _get_localzone(_root="/"):
                     line = line[match.end():]
                     etctz = line[: end_re.search(line).start()]
 
-                    # We found a timezone
-                    tz = etctz.replace(" ", "_")
-                    return tz
-
+                    return etctz.replace(" ", "_")
         except IOError:
             # File doesn't exist or is a directory
             continue
@@ -116,8 +108,7 @@ def _get_localzone(_root="/"):
         while start != 0:
             tzpath = tzpath[start:]
             try:
-                tested_tz = dateutil.tz.gettz(tzpath)
-                if tested_tz:
+                if tested_tz := dateutil.tz.gettz(tzpath):
                     return tzpath
             except Exception:
                 pass

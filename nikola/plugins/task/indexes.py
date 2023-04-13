@@ -121,7 +121,7 @@ Example:
             "featured": [p for p in self.site.posts if p.post_status == 'featured' and
                          (lang in p.translated_to or kw["show_untranslated_posts"])],
         }
-        kw.update(context)
+        kw |= context
         return context, kw
 
     def should_generate_classification_page(self, classification, post_list, lang):

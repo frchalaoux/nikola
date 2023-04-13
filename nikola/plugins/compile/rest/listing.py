@@ -70,10 +70,7 @@ class CodeBlock(Directive):
         if 'tab-width' in self.options:
             self.content = [x.replace('\t', ' ' * self.options['tab-width']) for x in self.content]
 
-        if self.arguments:
-            language = self.arguments[0]
-        else:
-            language = 'text'
+        language = self.arguments[0] if self.arguments else 'text'
         set_classes(self.options)
         classes = ['code']
         if language:
@@ -102,10 +99,9 @@ class CodeBlock(Directive):
         if self.site.invariant:  # for testing purposes
             anchor_ref = 'rest_code_' + 'fixedvaluethatisnotauuid'
         else:
-            anchor_ref = 'rest_code_' + uuid.uuid4().hex
+            anchor_ref = f'rest_code_{uuid.uuid4().hex}'
 
-        linespec = self.options.get('emphasize-lines')
-        if linespec:
+        if linespec := self.options.get('emphasize-lines'):
             try:
                 nlines = len(self.content)
                 hl_lines = utils.parselinenos(linespec, nlines)

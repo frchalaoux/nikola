@@ -134,7 +134,7 @@ def test_compiler_metadata(
         def __call__(self):
             return self
 
-    with mock.patch("nikola.plugins.compile." + compiler_lc + ".LocaleBorg", FakeBorg):
+    with mock.patch(f"nikola.plugins.compile.{compiler_lc}.LocaleBorg", FakeBorg):
         meta, extractor = get_meta(post, None)
 
     assert meta["title"] == title
@@ -192,7 +192,7 @@ class FakePost:
         self.metadata_path = metadata_path
         self.is_two_file = True
         self.config = {"TRANSLATIONS": {"en": "./"}, "DEFAULT_LANG": "en"}
-        self.config.update(config)
+        self.config |= config
         self.default_lang = self.config["DEFAULT_LANG"]
         self.metadata_extractors_by = metadata_extractors_by
         if compiler:

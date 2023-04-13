@@ -131,7 +131,7 @@ link://tag_rss/cats => /tags/cats.xml""",
             "tag_descriptions": self.site.config['TAG_DESCRIPTIONS'](lang),
             "tag_titles": self.site.config['TAG_TITLES'](lang),
         }
-        kw.update(context)
+        kw |= context
         return context, kw
 
     def provide_context_and_uptodate(self, classification, lang, node=None):
@@ -150,7 +150,7 @@ link://tag_rss/cats => /tags/cats.xml""",
             "pagekind": ["tag_page", "index" if self.show_list_as_index else "list"],
             "tag": classification,
         }
-        kw.update(context)
+        kw |= context
         return context, kw
 
     def get_other_language_variants(self, classification, lang, classifications_per_language):

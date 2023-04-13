@@ -99,9 +99,7 @@ class CommandGitHubDeploy(Command):
         for f in only_on_output:
             os.unlink(f)
 
-        # Remove drafts and future posts if requested (Issue #2406)
-        undeployed_posts = clean_before_deployment(self.site)
-        if undeployed_posts:
+        if undeployed_posts := clean_before_deployment(self.site):
             self.logger.warning("Deleted {0} posts due to DEPLOY_* settings".format(len(undeployed_posts)))
 
         # Commit and push

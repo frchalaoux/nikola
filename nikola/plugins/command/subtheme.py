@@ -38,10 +38,7 @@ LOGGER = utils.get_logger('subtheme')
 
 
 def _check_for_theme(theme, themes):
-    for t in themes:
-        if t.endswith(os.sep + theme):
-            return True
-    return False
+    return any(t.endswith(os.sep + theme) for t in themes)
 
 
 class CommandSubTheme(Command):
@@ -124,9 +121,9 @@ class CommandSubTheme(Command):
             else:  # Bootswatch
                 url = 'https://bootswatch.com'
                 if version:
-                    url += '/' + version
+                    url += f'/{version}'
                 url = '/'.join((url, swatch, fname))
-            LOGGER.info("Downloading: " + url)
+            LOGGER.info(f"Downloading: {url}")
             r = requests.get(url)
             if r.status_code > 299:
                 LOGGER.error('Error {} getting {}', r.status_code, url)
@@ -137,9 +134,8 @@ class CommandSubTheme(Command):
                       'w+') as output:
                 output.write(data)
 
-        with open(os.path.join('themes', name, '%s.theme' % name), 'w+') as output:
-            parent_theme_data_path = utils.get_asset_path(
-                '%s.theme' % parent, themes)
+        with open(os.path.join('themes', name, f'{name}.theme'), 'w+') as output:
+            parent_theme_data_path = utils.get_asset_path(f'{parent}.theme', themes)
             cp = configparser.ConfigParser()
             cp.read(parent_theme_data_path)
             cp['Theme']['parent'] = parent

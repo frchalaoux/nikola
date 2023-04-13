@@ -76,7 +76,7 @@ def get_localzone_name():
     if timezone is None:
         # Nope, that didn't work. Try adding "Standard Time",
         # it seems to work a lot of times:
-        timezone = win_tz.get(tzkeyname + " Standard Time")
+        timezone = win_tz.get(f"{tzkeyname} Standard Time")
 
     # Return what we have.
     return timezone

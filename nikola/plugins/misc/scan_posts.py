@@ -50,8 +50,7 @@ class ScanPosts(PostScanner):
 
         timeline = []
 
-        for wildcard, destination, template_name, use_in_feeds in \
-                self.site.config['post_pages']:
+        for wildcard, destination, template_name, use_in_feeds in self.site.config['post_pages']:
             if not self.site.quiet:
                 print(".", end='', file=sys.stderr)
             destination_translatable = utils.TranslatableSetting('destination', destination, self.site.config['TRANSLATIONS'])
@@ -75,13 +74,18 @@ class ScanPosts(PostScanner):
                 # also remove from translated paths that are translations of
                 # paths in untranslated_list, so x.es.rst is not in the untranslated set
                 for p in untranslated:
-                    translated = translated - set([utils.get_translation_candidate(self.site.config, p, l) for l in self.site.config['TRANSLATIONS'].keys()])
+                    translated = translated - {
+                        utils.get_translation_candidate(self.site.config, p, l)
+                        for l in self.site.config['TRANSLATIONS'].keys()
+                    }
 
                 full_list = list(translated) + list(untranslated)
                 # We eliminate from the list the files inside any .ipynb folder
-                full_list = [p for p in full_list
-                             if not any([x.startswith('.')
-                                         for x in p.split(os.sep)])]
+                full_list = [
+                    p
+                    for p in full_list
+                    if not any(x.startswith('.') for x in p.split(os.sep))
+                ]
 
                 for base_path in sorted(full_list):
                     if base_path in seen:
@@ -102,7 +106,7 @@ class ScanPosts(PostScanner):
                             seen.add(post.translated_source_path(lang))
                         timeline.append(post)
                     except Exception:
-                        LOGGER.error('Error reading post {}'.format(base_path))
+                        LOGGER.error(f'Error reading post {base_path}')
                         raise
 
         return timeline

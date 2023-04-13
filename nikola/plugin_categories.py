@@ -158,19 +158,17 @@ class Command(BasePlugin, DoitCommand):
 
 def help(self):
     """Return help text for a command."""
-    text = []
-    text.append("Purpose: %s" % self.doc_purpose)
-    text.append("Usage:   nikola %s %s" % (self.name, self.doc_usage))
-    text.append('')
-
-    text.append("Options:")
+    text = [
+        f"Purpose: {self.doc_purpose}",
+        f"Usage:   nikola {self.name} {self.doc_usage}",
+        '',
+        "Options:",
+    ]
     for opt in self.cmdparser.options:
         text.extend(opt.help_doc())
 
     if self.doc_description is not None:
-        text.append("")
-        text.append("Description:")
-        text.append(self.doc_description)
+        text.extend(("", "Description:", self.doc_description))
     return "\n".join(text)
 
 
@@ -289,15 +287,14 @@ class PageCompiler(BasePlugin):
 
     def get_dep_filename(self, post: 'nikola.post.Post', lang: str) -> str:
         """Return the .dep file's name for the given post and language."""
-        return post.translated_base_path(lang) + '.dep'
+        return f'{post.translated_base_path(lang)}.dep'
 
     def _read_extra_deps(self, post: 'nikola.post.Post', lang: str) -> 'typing.List[str]':
         """Read contents of .dep file and return them as a list."""
         dep_path = self.get_dep_filename(post, lang)
         if os.path.isfile(dep_path):
             with io.open(dep_path, 'r+', encoding='utf-8-sig') as depf:
-                deps = [l.strip() for l in depf.readlines()]
-                return deps
+                return [l.strip() for l in depf.readlines()]
         return []
 
     def register_extra_dependencies(self, post: 'nikola.post.Post'):
@@ -313,10 +310,7 @@ class PageCompiler(BasePlugin):
 
     def get_extra_targets(self, post: 'nikola.post.Post', lang: str, dest: str) -> 'typing.List[str]':
         """Return a list of extra targets for the render_posts task when compiling the post for the specified language."""
-        if self.use_dep_file:
-            return [self.get_dep_filename(post, lang)]
-        else:
-            return []
+        return [self.get_dep_filename(post, lang)] if self.use_dep_file else []
 
     def compile(self, source: str, dest: str, is_two_file=True, post=None, lang=None):
         """Compile the source file into HTML and save as dest."""
@@ -357,11 +351,11 @@ class PageCompiler(BasePlugin):
 
     def get_compiler_extensions(self) -> list:
         """Activate all the compiler extension plugins for a given compiler and return them."""
-        plugins = []
-        for plugin_info in self.site.compiler_extensions:
-            if plugin_info.plugin_object.compiler_name == self.name:
-                plugins.append(plugin_info)
-        return plugins
+        return [
+            plugin_info
+            for plugin_info in self.site.compiler_extensions
+            if plugin_info.plugin_object.compiler_name == self.name
+        ]
 
 
 class CompilerExtension(BasePlugin):
@@ -424,21 +418,17 @@ class MetadataExtractor(BasePlugin):
         """Split text into metadata and content (both strings)."""
         if self.split_metadata_re is None:
             return source_text
-        else:
-            split_result = self.split_metadata_re.split(source_text.lstrip(), maxsplit=1)
-            if len(split_result) == 1:
-                return split_result[0], split_result[0]
-            else:
-                # Necessary?
-                return split_result[0], split_result[-1]
+        split_result = self.split_metadata_re.split(source_text.lstrip(), maxsplit=1)
+        return (
+            (split_result[0], split_result[0])
+            if len(split_result) == 1
+            else (split_result[0], split_result[-1])
+        )
 
     def extract_text(self, source_text: str) -> 'typing.Dict[str, str]':
         """Split file, return metadata and the content."""
         split = self.split_metadata_from_text(source_text)
-        if not split:
-            return {}
-        meta = self._extract_metadata_from_text(split[0])
-        return meta
+        return self._extract_metadata_from_text(split[0]) if split else {}
 
     def extract_filename(self, filename: str, lang: str) -> 'typing.Dict[str, str]':
         """Extract metadata from filename."""

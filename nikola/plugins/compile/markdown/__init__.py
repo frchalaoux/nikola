@@ -62,9 +62,7 @@ class ThreadLocalMarkdown(threading.local):
         """Convert data to HTML and reset internal state."""
         result = self.markdown.convert(data)
         try:
-            meta = {}
-            for k in self.markdown.Meta:  # This reads everything as lists
-                meta[k.lower()] = ','.join(self.markdown.Meta[k])
+            meta = {k.lower(): ','.join(self.markdown.Meta[k]) for k in self.markdown.Meta}
         except Exception:
             meta = {}
         self.markdown.reset()
@@ -144,7 +142,7 @@ class CompileMarkdown(PageCompiler):
         kw.pop('is_page', False)
 
         metadata = {}
-        metadata.update(self.default_metadata)
+        metadata |= self.default_metadata
         metadata.update(kw)
         makedirs(os.path.dirname(path))
         if not content.endswith('\n'):

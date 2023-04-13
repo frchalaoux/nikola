@@ -257,8 +257,7 @@ class CommandTheme(Command):
             return 1
         LOGGER.warning('About to uninstall theme: {0}'.format(name))
         LOGGER.warning('This will delete {0}'.format(path))
-        sure = utils.ask_yesno('Are you sure?')
-        if sure:
+        if sure := utils.ask_yesno('Are you sure?'):
             LOGGER.warning('Removing {0}'.format(path))
             shutil.rmtree(path)
             return 0
@@ -307,7 +306,7 @@ class CommandTheme(Command):
         # Figure out where to put it.
         # Check if a local theme exists.
         theme_path = utils.get_theme_path(self.site.THEMES[0])
-        if theme_path.startswith('themes' + os.sep):
+        if theme_path.startswith(f'themes{os.sep}'):
             # Theme in local themes/ directory
             base = os.path.join(theme_path, 'templates')
         else:
@@ -355,7 +354,7 @@ class CommandTheme(Command):
             'parent': parent
         }
 
-        theme_meta_path = os.path.join(themedir, name + '.theme')
+        theme_meta_path = os.path.join(themedir, f'{name}.theme')
         with io.open(theme_meta_path, 'w', encoding='utf-8') as fh:
             cp.write(fh)
             LOGGER.info("Created file {0}".format(theme_meta_path))
@@ -384,7 +383,7 @@ class CommandTheme(Command):
                     self.json = requests.get(url).json()
             except json.decoder.JSONDecodeError as e:
                 LOGGER.error("Failed to decode JSON data in response from server.")
-                LOGGER.error("JSON error encountered:" + str(e))
+                LOGGER.error(f"JSON error encountered:{str(e)}")
                 LOGGER.error("This issue might be caused by server-side issues, or by to unusual activity in your "
                              "network (as determined by CloudFlare). Please visit https://themes.getnikola.com/ in "
                              "a browser.")

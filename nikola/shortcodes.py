@@ -47,7 +47,7 @@ def _format_position(data, pos):
     col = 0
     llb = ''  # last line break
     for c in data[:pos]:
-        if c == '\r' or c == '\n':
+        if c in ['\r', '\n']:
             if llb and c != llb:
                 llb = ''
             else:
@@ -66,22 +66,18 @@ def _skip_whitespace(data, pos, must_be_nontrivial=False):
     If must_be_nontrivial is set to True, raises ParsingError
     if no whitespace is found.
     """
-    if must_be_nontrivial:
-        if pos == len(data) or not data[pos].isspace():
-            raise ParsingError("Expecting whitespace at {0}!".format(_format_position(data, pos)))
-    while pos < len(data):
-        if not data[pos].isspace():
-            break
+    if must_be_nontrivial and (pos == len(data) or not data[pos].isspace()):
+        raise ParsingError("Expecting whitespace at {0}!".format(_format_position(data, pos)))
+    while pos < len(data) and data[pos].isspace():
         pos += 1
     return pos
 
 
 def _skip_nonwhitespace(data, pos):
     """Return first position not before pos which contains a non-whitespace character."""
-    for i, x in enumerate(data[pos:]):
-        if x.isspace():
-            return pos + i
-    return len(data)
+    return next(
+        (pos + i for i, x in enumerate(data[pos:]) if x.isspace()), len(data)
+    )
 
 
 def _parse_quoted_string(data, start):
@@ -95,12 +91,11 @@ def _parse_quoted_string(data, start):
     while pos < len(data):
         char = data[pos]
         if char == '\\':
-            if pos + 1 < len(data):
-                value += data[pos + 1]
-                pos += 2
-            else:
+            if pos + 1 >= len(data):
                 raise ParsingError("Unexpected end of data while escaping ({0})".format(_format_position(data, pos)))
-        elif (char == "'" or char == '"') and char == qc:
+            value += data[pos + 1]
+            pos += 2
+        elif char in ["'", '"'] and char == qc:
             return pos + 1, value
         else:
             value += char
@@ -120,16 +115,15 @@ def _parse_unquoted_string(data, start, stop_at_equals):
     while pos < len(data):
         char = data[pos]
         if char == '\\':
-            if pos + 1 < len(data):
-                value += data[pos + 1]
-                pos += 2
-            else:
+            if pos + 1 >= len(data):
                 raise ParsingError("Unexpected end of data while escaping ({0})".format(_format_position(data, pos)))
+            value += data[pos + 1]
+            pos += 2
         elif char.isspace():
             break
         elif char == '=' and stop_at_equals:
             break
-        elif char == "'" or char == '"':
+        elif char in ["'", '"']:
             raise ParsingError("Unexpected quotation mark in unquoted string ({0})".format(_format_position(data, pos)))
         else:
             value += char
@@ -149,7 +143,7 @@ def _parse_string(data, start, stop_at_equals=False, must_have_content=False):
     if start == len(data):
         raise ParsingError("Expecting string, but found end of input!")
     char = data[start]
-    if char == '"' or char == "'":
+    if char in ['"', "'"]:
         end, value = _parse_quoted_string(data, start)
         has_content = True
     else:
@@ -204,7 +198,7 @@ def _parse_shortcode_args(data, start, shortcode_name, start_pos):
 
 
 def _new_sc_id():
-    return str('SHORTCODE{0}REPLACEMENT'.format(str(uuid.uuid4()).replace('-', '')))
+    return 'SHORTCODE{0}REPLACEMENT'.format(str(uuid.uuid4()).replace('-', ''))
 
 
 def extract_shortcodes(data):
@@ -341,17 +335,16 @@ def apply_shortcodes(data, registry, site=None, filename=None, raise_exceptions=
                 raise ParsingError("Found shortcode ending '{{{{% /{0} %}}}}' which isn't closing a started shortcode ({1})!".format(current[3], _format_position(data, current[2])))
             elif current[0] == "SHORTCODE_START":
                 name = current[3]
-                # Check if we can find corresponding ending
-                found = None
-                for p in range(pos + 1, len(sc_data)):
-                    if sc_data[p][0] == "SHORTCODE_END" and sc_data[p][3] == name:
-                        found = p
-                        break
-                if found:
-                    # Found ending. Extract data argument:
-                    data_arg = []
-                    for p in range(pos + 1, found):
-                        data_arg.append(sc_data[p][1])
+                if found := next(
+                    (
+                        p
+                        for p in range(pos + 1, len(sc_data))
+                        if sc_data[p][0] == "SHORTCODE_END"
+                        and sc_data[p][3] == name
+                    ),
+                    None,
+                ):
+                    data_arg = [sc_data[p][1] for p in range(pos + 1, found)]
                     data_arg = empty_string.join(data_arg)
                     pos = found + 1
                 else:

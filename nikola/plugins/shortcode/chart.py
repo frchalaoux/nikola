@@ -56,21 +56,18 @@ class ChartShortcode(ShortcodePlugin):
         data = _options.pop('data')
 
         for line in data.splitlines():
-            line = line.strip()
-            if line:
+            if line := line.strip():
                 chart_data.append(literal_eval('({0})'.format(line)))
         if 'data_file' in _options:
             options = load_data(_options['data_file'])
             _options.pop('data_file')
             if not chart_data:  # If there is data in the document, it wins
-                for k, v in options.pop('data', {}).items():
-                    chart_data.append((k, v))
-
+                chart_data.extend((k, v) for k, v in options.pop('data', {}).items())
         options.update(_options)
 
         style_name = options.pop('style', 'BlueStyle')
         if '(' in style_name:  # Parametric style
-            style = eval('pygal.style.' + style_name)
+            style = eval(f'pygal.style.{style_name}')
         else:
             style = getattr(pygal.style, style_name)
         for k, v in options.items():

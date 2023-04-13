@@ -78,17 +78,17 @@ def main():
 
     headers = {
         'User-Agent': 'Kwpolska/python-project-template',
-        'Authorization': 'token ' + token,
+        'Authorization': f'token {token}',
     }
 
     with open(filename) as fh:
         fdata = fh.read()
-        e = re.findall(
+        if e := re.findall(
             '#~ CHANGELOG MESSAGE START ~#\n(.*?)\n'
             '#~ CHANGELOG MESSAGE END ~#',
-            fdata, flags=re.S)
-
-        if e:
+            fdata,
+            flags=re.S,
+        ):
             # parse as a CMFN file, replace backticks (reST -> Markdown)
             message = e[0].replace('``', '`')
         else:

@@ -79,11 +79,12 @@ class BetterHtmlFormatter(HtmlFormatter):
             ),
             ("{0} .lineno.nonumber", "list-style: none"),
         )
-        new_styles_code = []
         if wrapper_classes is None:
-            wrapper_classes = ["." + self.cssclass]
-        for cls, rule in new_styles:
-            new_styles_code.append(", ".join(cls.format(c) for c in wrapper_classes) + " { " + rule + " }")
+            wrapper_classes = [f".{self.cssclass}"]
+        new_styles_code = [
+            ", ".join(cls.format(c) for c in wrapper_classes) + " { " + rule + " }"
+            for cls, rule in new_styles
+        ]
         return base + "\n" + "\n".join(new_styles_code)
 
     def _wrap_tablelinenos(self, inner):
@@ -101,55 +102,37 @@ class BetterHtmlFormatter(HtmlFormatter):
         la = self.lineanchors
         aln = self.anchorlinenos
         nocls = self.noclasses
-        if sp:
-            lines = []
+        lines = []
 
-            for i in range(fl, fl + lncount):
-                line_before = ""
-                line_after = ""
-                if i % st == 0:
-                    if i % sp == 0:
-                        if aln:
-                            line_before = '<a href="#%s-%d" class="special">' % (la, i)
-                            line_after = "</a>"
-                        else:
-                            line_before = '<span class="special">'
-                            line_after = "</span>"
-                    elif aln:
-                        line_before = '<a href="#%s-%d">' % (la, i)
-                        line_after = "</a>"
-                    lines.append((line_before, "%*d" % (mw, i), line_after))
-                else:
-                    lines.append(("", "", ""))
-        else:
-            lines = []
-            for i in range(fl, fl + lncount):
-                line_before = ""
-                line_after = ""
-                if i % st == 0:
-                    if aln:
-                        line_before = '<a href="#%s-%d">' % (la, i)
-                        line_after = "</a>"
-                    lines.append((line_before, "%*d" % (mw, i), line_after))
-                else:
-                    lines.append(("", "", ""))
-
-        yield 0, '<div class="%s"><table class="%stable">' % (
-            self.cssclass,
-            self.cssclass,
-        )
+        for i in range(fl, fl + lncount):
+            line_before = ""
+            line_after = ""
+            if i % st == 0:
+                if sp and i % sp == 0 and aln:
+                    line_before = '<a href="#%s-%d" class="special">' % (la, i)
+                    line_after = "</a>"
+                elif sp and i % sp == 0:
+                    line_before = '<span class="special">'
+                    line_after = "</span>"
+                elif sp and aln or not sp and aln:
+                    line_before = '<a href="#%s-%d">' % (la, i)
+                    line_after = "</a>"
+                lines.append((line_before, "%*d" % (mw, i), line_after))
+            else:
+                lines.append(("", "", ""))
+        yield (0, f'<div class="{self.cssclass}"><table class="{self.cssclass}table">')
         for lndata, cl in zip(lines, codelines):
             ln_b, ln, ln_a = lndata
             cl = MANY_SPACES.sub(_sp_to_nbsp, cl)
             if nocls:
-                yield 0, (
-                    '<tr><td class="linenos linenodiv" style="background-color: #f0f0f0; padding-right: 10px">' + ln_b +
-                    '<code data-line-number="' + ln + '"></code>' + ln_a + '</td><td class="code"><code>' + cl + "</code></td></tr>"
+                yield (
+                    0,
+                    f'<tr><td class="linenos linenodiv" style="background-color: #f0f0f0; padding-right: 10px">{ln_b}<code data-line-number="{ln}"></code>{ln_a}</td><td class="code"><code>{cl}</code></td></tr>',
                 )
             else:
-                yield 0, (
-                    '<tr><td class="linenos linenodiv">' + ln_b + '<code data-line-number="' + ln +
-                    '"></code>' + ln_a + '</td><td class="code"><code>' + cl + "</code></td></tr>"
+                yield (
+                    0,
+                    f'<tr><td class="linenos linenodiv">{ln_b}<code data-line-number="{ln}"></code>{ln_a}</td><td class="code"><code>{cl}</code></td></tr>',
                 )
         yield 0, "</table></div>"
 
@@ -167,40 +150,32 @@ class BetterHtmlFormatter(HtmlFormatter):
             warnings.warn("anchorlinenos is not supported for linenos='ol'.")
 
         yield 0, "<ol>"
-        if self.noclasses:
-            if sp:
-                for t, line in lines:
+        for t, line in lines:
+            if self.noclasses:
+                if sp:
                     if num % sp == 0:
                         style = "background-color: #ffffc0; padding: 0 5px 0 5px"
                     else:
                         style = "background-color: #f0f0f0; padding: 0 5px 0 5px"
                     if num % st != 0:
                         style += "; list-style: none"
-                    yield 1, '<li style="%s" value="%s">' % (style, num,) + line + "</li>"
-                    num += 1
-            else:
-                for t, line in lines:
-                    yield 1, (
-                        '<li style="background-color: #f0f0f0; padding: 0 5px 0 5px%s" value="%s">'
-                        % (("; list-style: none" if num % st != 0 else ""), num) + line + "</li>"
+                    yield (1, f'<li style="{style}" value="{num}">{line}</li>')
+                else:
+                    yield (
+                        1,
+                        f'<li style="background-color: #f0f0f0; padding: 0 5px 0 5px{"; list-style: none" if num % st != 0 else ""}" value="{num}">{line}</li>',
                     )
-                    num += 1
-        elif sp:
-            for t, line in lines:
-                yield 1, '<li class="lineno%s%s" value="%s">' % (
-                    " special" if num % sp == 0 else "",
-                    " nonumber" if num % st != 0 else "",
-                    num,
-                ) + line + "</li>"
-                num += 1
-        else:
-            for t, line in lines:
-                yield 1, '<li class="lineno%s" value="%s">' % (
-                    "" if num % st != 0 else " nonumber",
-                    num,
-                ) + line + "</li>"
-                num += 1
-
+            elif sp:
+                yield (
+                    1,
+                    f'<li class="lineno{" special" if num % sp == 0 else ""}{" nonumber" if num % st != 0 else ""}" value="{num}">{line}</li>',
+                )
+            else:
+                yield (
+                    1,
+                    f'<li class="lineno{"" if num % st != 0 else " nonumber"}" value="{num}">{line}</li>',
+                )
+            num += 1
         yield 0, "</ol>"
 
     def format_unencoded(self, tokensource, outfile):

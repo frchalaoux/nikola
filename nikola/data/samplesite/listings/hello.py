@@ -4,7 +4,7 @@ import sys
 
 
 def hello(name='world'):
-    greeting = "hello " + name
+    greeting = f"hello {name}"
     print(greeting)
 
 

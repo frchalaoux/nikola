@@ -101,7 +101,9 @@ class RenderTaxonomies(Task):
                 for classification in classifications
             ]
             context[taxonomy.overview_page_items_variable_name] = items
-            context[taxonomy.overview_page_items_variable_name + "_with_postcount"] = items_with_postcount
+            context[
+                f"{taxonomy.overview_page_items_variable_name}_with_postcount"
+            ] = items_with_postcount
         if taxonomy.has_hierarchy and taxonomy.overview_page_hierarchy_variable_name:
             hier_items = [
                 (node.name, node.classification_name, node.classification_path,
@@ -120,15 +122,22 @@ class RenderTaxonomies(Task):
                 for node in clipped_flat_hierarchy
             ]
             context[taxonomy.overview_page_hierarchy_variable_name] = hier_items
-            context[taxonomy.overview_page_hierarchy_variable_name + '_with_postcount'] = hier_items_with_postcount
+            context[
+                f'{taxonomy.overview_page_hierarchy_variable_name}_with_postcount'
+            ] = hier_items_with_postcount
         return context, kw
 
     def _render_classification_overview(self, classification_name, template, lang, context, kw):
         # Prepare rendering
-        context["permalink"] = self.site.link("{}_index".format(classification_name), None, lang)
+        context["permalink"] = self.site.link(
+            f"{classification_name}_index", None, lang
+        )
         if "pagekind" not in context:
             context["pagekind"] = ["list", "tags_page"]
-        output_name = os.path.join(self.site.config['OUTPUT_FOLDER'], self.site.path('{}_index'.format(classification_name), None, lang))
+        output_name = os.path.join(
+            self.site.config['OUTPUT_FOLDER'],
+            self.site.path(f'{classification_name}_index', None, lang),
+        )
         blinker.signal('generate_classification_overview').send({
             'site': self.site,
             'classification_name': classification_name,
@@ -152,8 +161,13 @@ class RenderTaxonomies(Task):
     def _generate_classification_overview(self, taxonomy, lang):
         """Create a global "all your tags/categories" page for a given language."""
         context, kw = self._generate_classification_overview_kw_context(taxonomy, lang)
-        for task in self._render_classification_overview(taxonomy.classification_name, taxonomy.template_for_classification_overview, lang, context, kw):
-            yield task
+        yield from self._render_classification_overview(
+            taxonomy.classification_name,
+            taxonomy.template_for_classification_overview,
+            lang,
+            context,
+            kw,
+        )
 
     def _generate_tag_and_category_overview(self, tag_taxonomy, category_taxonomy, lang):
         """Create a global "all your tags/categories" page for a given language."""
@@ -186,15 +200,28 @@ class RenderTaxonomies(Task):
             kw = tag_kw
 
         # Render result
-        for task in self._render_classification_overview('tag', tag_taxonomy.template_for_classification_overview, lang, context, kw):
-            yield task
+        yield from self._render_classification_overview(
+            'tag',
+            tag_taxonomy.template_for_classification_overview,
+            lang,
+            context,
+            kw,
+        )
 
     def _generate_classification_page_as_rss(self, taxonomy, classification, filtered_posts, title, description, kw, lang):
         """Create a RSS feed for a single classification in a given language."""
         kind = taxonomy.classification_name
         # Render RSS
-        output_name = os.path.normpath(os.path.join(self.site.config['OUTPUT_FOLDER'], self.site.path(kind + "_rss", classification, lang)))
-        feed_url = urljoin(self.site.config['BASE_URL'], self.site.link(kind + "_rss", classification, lang).lstrip('/'))
+        output_name = os.path.normpath(
+            os.path.join(
+                self.site.config['OUTPUT_FOLDER'],
+                self.site.path(f"{kind}_rss", classification, lang),
+            )
+        )
+        feed_url = urljoin(
+            self.site.config['BASE_URL'],
+            self.site.link(f"{kind}_rss", classification, lang).lstrip('/'),
+        )
         deps = []
         deps_uptodate = []
         for post in filtered_posts:
@@ -440,20 +467,31 @@ class RenderTaxonomies(Task):
                 if not taxonomy.is_enabled(lang):
                     continue
                 # Generate list of classifications (i.e. classification overview)
-                if taxonomy not in ignore_plugins_for_overview:
-                    if taxonomy.template_for_classification_overview is not None:
-                        for task in self._generate_classification_overview(taxonomy, lang):
-                            yield task
-
+                if (
+                    taxonomy not in ignore_plugins_for_overview
+                    and taxonomy.template_for_classification_overview is not None
+                ):
+                    yield from self._generate_classification_overview(taxonomy, lang)
                 # Process classifications
                 for classification, (filtered_posts, generate_list, generate_rss, generate_atom) in post_lists_per_lang[taxonomy.classification_name][lang].items():
-                    for task in self._generate_classification_page(taxonomy, classification, filtered_posts,
-                                                                   generate_list, generate_rss, generate_atom, lang,
-                                                                   post_lists_per_lang[taxonomy.classification_name],
-                                                                   classification_set_per_lang.get(taxonomy.classification_name)):
-                        yield task
+                    yield from self._generate_classification_page(
+                        taxonomy,
+                        classification,
+                        filtered_posts,
+                        generate_list,
+                        generate_rss,
+                        generate_atom,
+                        lang,
+                        post_lists_per_lang[taxonomy.classification_name],
+                        classification_set_per_lang.get(
+                            taxonomy.classification_name
+                        ),
+                    )
             # In case we are ignoring plugins for overview, we must have a collision for
             # tags and categories. Handle this special case with extra code.
             if ignore_plugins_for_overview:
-                for task in self._generate_tag_and_category_overview(self.site.taxonomy_plugins['tag'], self.site.taxonomy_plugins['category'], lang):
-                    yield task
+                yield from self._generate_tag_and_category_overview(
+                    self.site.taxonomy_plugins['tag'],
+                    self.site.taxonomy_plugins['category'],
+                    lang,
+                )

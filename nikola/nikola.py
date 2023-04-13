@@ -361,8 +361,7 @@ DEFAULT_TRANSLATIONS_PATTERN = '{path}.{lang}.{ext}'
 
 def _enclosure(post, lang):
     """Add an enclosure to RSS."""
-    enclosure = post.meta('enclosure', lang)
-    if enclosure:
+    if enclosure := post.meta('enclosure', lang):
         try:
             length = int(post.meta('enclosure_length', lang) or 0)
         except KeyError:
